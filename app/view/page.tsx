@@ -2,12 +2,12 @@
 // app/view/page.tsx
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import ArtCanvas, { ArtCanvasHandle, StatsOverrides, RouteDefaults, ImageOverride } from '@/components/ArtCanvas';
 import EditPanel from '@/components/EditPanel';
 import { Landmark } from '@/lib/landmarks';
-import { Download, ArrowLeft, Pencil } from 'lucide-react';
+import { Download, ArrowLeft, Pencil, RectangleHorizontal, RectangleVertical } from 'lucide-react';
 
 export default function ViewPage() {
     const router = useRouter();
@@ -28,8 +28,12 @@ export default function ViewPage() {
     const [imageOverride, setImageOverride] = useState<ImageOverride>({ enabled: true });
     const [countryCode, setCountryCode] = useState<string | null>(null);
 
+
     // Edit panel state
-    const [editTab, setEditTab] = useState<'landmarks' | 'stats' | 'image' | null>(null);
+    const [editTab, setEditTab] = useState<'landmarks' | 'statbox' | null>(null);
+
+    // Poster orientation state
+    const [isPortrait, setIsPortrait] = useState(false);
 
     useEffect(() => {
         // Retrieve data from sessionStorage
@@ -59,6 +63,7 @@ export default function ViewPage() {
                 if (storedImageOverride) {
                     setImageOverride(JSON.parse(storedImageOverride));
                 }
+
             } catch {
                 console.error('Failed to parse stored route data');
                 router.push('/');
@@ -150,6 +155,7 @@ export default function ViewPage() {
         sessionStorage.removeItem('routeArtSelectedLandmarks');
         sessionStorage.removeItem('routeArtStatsOverrides');
         sessionStorage.removeItem('routeArtImageOverride');
+        sessionStorage.removeItem('routeArtStatsBoxPosition');
         router.push('/');
     };
 
@@ -162,7 +168,7 @@ export default function ViewPage() {
     }
 
     return (
-        <main className="min-h-screen bg-neutral-100 text-neutral-900 flex flex-col font-sans">
+        <main className="h-screen bg-neutral-100 text-neutral-900 flex flex-col font-sans overflow-hidden">
             <header className="p-6 border-b border-neutral-200 bg-white flex justify-between items-center">
                 <div className="flex items-center gap-4">
                     <button
@@ -176,6 +182,17 @@ export default function ViewPage() {
                     <h1 className="text-xl font-bold tracking-tight">Route Art</h1>
                 </div>
                 <div className="flex gap-2">
+                    <button
+                        onClick={() => setIsPortrait(!isPortrait)}
+                        className="flex items-center gap-2 px-4 py-2 border border-neutral-300 bg-white text-neutral-900 rounded-md hover:bg-neutral-50 transition-colors text-sm font-medium"
+                        title={isPortrait ? 'Switch to landscape' : 'Switch to portrait'}
+                    >
+                        {isPortrait ? (
+                            <RectangleHorizontal className="w-4 h-4" />
+                        ) : (
+                            <RectangleVertical className="w-4 h-4" />
+                        )}
+                    </button>
                     <button
                         onClick={() => setEditTab('landmarks')}
                         className="flex items-center gap-2 px-4 py-2 border border-neutral-300 bg-white text-neutral-900 rounded-md hover:bg-neutral-50 transition-colors text-sm font-medium"
@@ -200,46 +217,52 @@ export default function ViewPage() {
                 </div>
             </header>
 
-            <div className="flex-1 p-6 flex items-center justify-center min-h-0">
-                <div
-                    className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden relative"
-                    style={{
-                        aspectRatio: '3 / 2',
-                        width: '100%',
-                        maxWidth: 'calc((100vh - 180px) * 1.5)', // 3:2 ratio constraint based on available height
-                        maxHeight: 'calc(100vh - 180px)'
-                    }}
-                >
-                    <ArtCanvas
-                        ref={canvasRef}
-                        geoJson={geoJson}
-                        fileName={fileName}
-                        selectedLandmarkIds={selectedLandmarkIds ?? undefined}
-                        statsOverrides={statsOverrides}
-                        imageOverride={imageOverride}
-                        onLandmarksLoaded={handleLandmarksLoaded}
-                        onVisibleLandmarksCalculated={handleVisibleLandmarksCalculated}
-                        onDefaultsCalculated={handleDefaultsCalculated}
-                        onCountryCodeDetected={handleCountryCodeDetected}
-                    />
-                    {editTab && (
-                        <EditPanel
-                            landmarks={allLandmarks}
-                            selectedLandmarkIds={selectedLandmarkIds ?? new Set()}
-                            onToggleLandmark={handleToggleLandmark}
-                            onSelectAllLandmarks={handleSelectAll}
-                            onDeselectAllLandmarks={handleDeselectAll}
-                            statsDefaults={routeDefaults}
+            <div className="flex-1 flex min-h-0 overflow-hidden">
+                <div className={`flex-1 flex items-center justify-center min-h-0 ${isPortrait ? 'py-2 px-4' : 'p-6'}`}>
+                    <div
+                        className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden relative"
+                        style={isPortrait ? {
+                            aspectRatio: '2 / 3',
+                            height: '85vh',
+                            maxWidth: 'calc(85vh * 0.667)' // 2:3 ratio constraint
+                        } : {
+                            aspectRatio: '3 / 2',
+                            width: '100%',
+                            maxWidth: 'calc((100vh - 180px) * 1.5)', // 3:2 ratio constraint
+                            maxHeight: 'calc(100vh - 180px)'
+                        }}
+                    >
+                        <ArtCanvas
+                            ref={canvasRef}
+                            geoJson={geoJson}
+                            fileName={fileName}
+                            selectedLandmarkIds={selectedLandmarkIds ?? undefined}
                             statsOverrides={statsOverrides}
-                            onSaveStats={handleStatsOverridesSave}
-                            countryCode={countryCode}
                             imageOverride={imageOverride}
-                            onSaveImage={handleImageOverrideSave}
-                            initialTab={editTab}
-                            onClose={() => setEditTab(null)}
+                            onLandmarksLoaded={handleLandmarksLoaded}
+                            onVisibleLandmarksCalculated={handleVisibleLandmarksCalculated}
+                            onDefaultsCalculated={handleDefaultsCalculated}
+                            onCountryCodeDetected={handleCountryCodeDetected}
                         />
-                    )}
+                    </div>
                 </div>
+                {editTab && (
+                    <EditPanel
+                        landmarks={allLandmarks}
+                        selectedLandmarkIds={selectedLandmarkIds ?? new Set()}
+                        onToggleLandmark={handleToggleLandmark}
+                        onSelectAllLandmarks={handleSelectAll}
+                        onDeselectAllLandmarks={handleDeselectAll}
+                        statsDefaults={routeDefaults}
+                        statsOverrides={statsOverrides}
+                        onSaveStats={handleStatsOverridesSave}
+                        countryCode={countryCode}
+                        imageOverride={imageOverride}
+                        onSaveImage={handleImageOverrideSave}
+                        initialTab={editTab}
+                        onClose={() => setEditTab(null)}
+                    />
+                )}
             </div>
         </main>
     );

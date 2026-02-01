@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { X, Mountain, Droplets, Triangle, MapPin, ImageIcon, Upload, Trash2 } from 'lucide-react';
+import { X, Mountain, Droplets, Triangle, MapPin, Upload, Trash2 } from 'lucide-react';
 import { Landmark } from '@/lib/landmarks';
 
 export interface StatsOverrides {
@@ -24,7 +24,7 @@ export interface ImageOverride {
     enabled: boolean;
 }
 
-type TabType = 'landmarks' | 'stats' | 'image';
+type TabType = 'landmarks' | 'statbox';
 
 interface EditPanelProps {
     // Landmarks props
@@ -153,12 +153,11 @@ export default function EditPanel({
 
     const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
         { id: 'landmarks', label: 'Landmarks', icon: <MapPin className="w-3.5 h-3.5" /> },
-        { id: 'stats', label: 'Stats', icon: <Mountain className="w-3.5 h-3.5" /> },
-        { id: 'image', label: 'Image', icon: <ImageIcon className="w-3.5 h-3.5" /> },
+        { id: 'statbox', label: 'Stat Bar', icon: <Mountain className="w-3.5 h-3.5" /> },
     ];
 
     return (
-        <div className="absolute top-0 right-0 bottom-0 w-80 bg-white border-l border-neutral-200 shadow-lg z-20 flex flex-col">
+        <div className="w-80 h-full max-h-full bg-white border-l border-neutral-200 shadow-lg flex flex-col flex-shrink-0 overflow-hidden">
             {/* Header */}
             <div className="p-4 border-b border-neutral-200 flex items-center justify-between">
                 <div>
@@ -257,7 +256,7 @@ export default function EditPanel({
                     </div>
                 )}
 
-                {activeTab === 'stats' && (
+                {activeTab === 'statbox' && (
                     <div className="p-4 space-y-4">
                         {!statsDefaults ? (
                             <p className="text-xs text-neutral-400 text-center py-8">
@@ -321,104 +320,94 @@ export default function EditPanel({
                                 >
                                     Reset to original values
                                 </button>
-                            </>
-                        )}
-                    </div>
-                )}
 
-                {activeTab === 'image' && (
-                    <div className="p-4 space-y-4">
-                        <div>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={imageOverride.enabled}
-                                    onChange={(e) => handleToggleImageEnabled(e.target.checked)}
-                                    className="w-4 h-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
-                                />
-                                <span className="text-sm font-medium text-neutral-700">
-                                    Show image in stats box
-                                </span>
-                            </label>
-                        </div>
+                                {/* Divider */}
+                                <div className="border-t border-neutral-200 pt-4">
+                                    <h4 className="text-xs font-medium text-neutral-600 mb-3">Image</h4>
 
-                        {imageOverride.enabled && (
-                            <>
-                                {/* Current Image */}
-                                <div>
-                                    <label className="block text-xs font-medium text-neutral-600 mb-2">
-                                        Current Image
+                                    <label className="flex items-center gap-2 cursor-pointer mb-3">
+                                        <input
+                                            type="checkbox"
+                                            checked={imageOverride.enabled}
+                                            onChange={(e) => handleToggleImageEnabled(e.target.checked)}
+                                            className="w-4 h-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
+                                        />
+                                        <span className="text-sm text-neutral-700">
+                                            Show image
+                                        </span>
                                     </label>
-                                    {imageOverride.url ? (
-                                        <div className="flex items-center gap-3 p-3 bg-neutral-50 rounded-md border border-neutral-100">
-                                            <img
-                                                src={imageOverride.url}
-                                                alt="Custom image"
-                                                className="h-10 w-auto rounded shadow-sm"
-                                            />
-                                            <div className="flex-1">
-                                                <span className="text-xs text-neutral-500">
-                                                    Custom image
-                                                </span>
+
+                                    {imageOverride.enabled && (
+                                        <>
+                                            {/* Current Image */}
+                                            <div className="mb-3">
+                                                {imageOverride.url ? (
+                                                    <div className="flex items-center gap-3 p-3 bg-neutral-50 rounded-md border border-neutral-100">
+                                                        <img
+                                                            src={imageOverride.url}
+                                                            alt="Custom image"
+                                                            className="h-10 w-auto rounded shadow-sm"
+                                                        />
+                                                        <div className="flex-1">
+                                                            <span className="text-xs text-neutral-500">
+                                                                Custom image
+                                                            </span>
+                                                        </div>
+                                                        <button
+                                                            onClick={handleRemoveCustomImage}
+                                                            className="p-1.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                            title="Remove custom image"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ) : defaultFlagUrl ? (
+                                                    <div className="flex items-center gap-3 p-3 bg-neutral-50 rounded-md border border-neutral-100">
+                                                        <img
+                                                            src={defaultFlagUrl}
+                                                            alt="Country flag"
+                                                            className="h-10 w-auto rounded shadow-sm"
+                                                        />
+                                                        <span className="text-xs text-neutral-500">
+                                                            {countryCode} flag (auto-detected)
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs text-neutral-400 p-3 bg-neutral-50 rounded-md border border-neutral-100">
+                                                        No country detected for this route
+                                                    </p>
+                                                )}
                                             </div>
-                                            <button
-                                                onClick={handleRemoveCustomImage}
-                                                className="p-1.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                                                title="Remove custom image"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ) : defaultFlagUrl ? (
-                                        <div className="flex items-center gap-3 p-3 bg-neutral-50 rounded-md border border-neutral-100">
-                                            <img
-                                                src={defaultFlagUrl}
-                                                alt="Country flag"
-                                                className="h-10 w-auto rounded shadow-sm"
-                                            />
-                                            <span className="text-xs text-neutral-500">
-                                                {countryCode} flag (auto-detected)
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <p className="text-xs text-neutral-400 p-3 bg-neutral-50 rounded-md border border-neutral-100">
-                                            No country detected for this route
-                                        </p>
+
+                                            {/* Upload Custom Image */}
+                                            <div>
+                                                <input
+                                                    ref={fileInputRef}
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleFileUpload}
+                                                    className="hidden"
+                                                />
+                                                <button
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-neutral-200 rounded-md hover:border-neutral-400 hover:bg-neutral-50 transition-colors text-sm text-neutral-600"
+                                                >
+                                                    <Upload className="w-4 h-4" />
+                                                    Upload custom image
+                                                </button>
+                                            </div>
+
+                                            {imageOverride.url && (
+                                                <button
+                                                    onClick={handleResetImage}
+                                                    className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors mt-2"
+                                                >
+                                                    Reset to default flag
+                                                </button>
+                                            )}
+                                        </>
                                     )}
                                 </div>
-
-                                {/* Upload Custom Image */}
-                                <div>
-                                    <label className="block text-xs font-medium text-neutral-600 mb-2">
-                                        Upload Custom Image
-                                    </label>
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleFileUpload}
-                                        className="hidden"
-                                    />
-                                    <button
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-neutral-200 rounded-md hover:border-neutral-400 hover:bg-neutral-50 transition-colors text-sm text-neutral-600"
-                                    >
-                                        <Upload className="w-4 h-4" />
-                                        Choose image file
-                                    </button>
-                                    <p className="text-xs text-neutral-400 mt-1.5">
-                                        PNG, JPG, or SVG recommended
-                                    </p>
-                                </div>
-
-                                {imageOverride.url && (
-                                    <button
-                                        onClick={handleResetImage}
-                                        className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
-                                    >
-                                        Reset to default flag
-                                    </button>
-                                )}
                             </>
                         )}
                     </div>
@@ -426,7 +415,7 @@ export default function EditPanel({
             </div>
 
             {/* Footer with Save */}
-            {activeTab === 'stats' && (
+            {activeTab === 'statbox' && (
                 <div className="p-3 border-t border-neutral-200">
                     <button
                         onClick={handleSaveStats}
@@ -437,7 +426,7 @@ export default function EditPanel({
                 </div>
             )}
 
-            {(activeTab === 'landmarks' || activeTab === 'image') && (
+            {activeTab === 'landmarks' && (
                 <div className="p-3 border-t border-neutral-200">
                     <button
                         onClick={onClose}

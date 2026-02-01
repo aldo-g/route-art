@@ -57,6 +57,24 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
     const [viewBbox, setViewBbox] = useState<{ minLng: number; minLat: number; maxLng: number; maxLat: number } | null>(null);
     const [allLandmarks, setAllLandmarks] = useState<Landmark[]>([]);
     const [countryCode, setCountryCode] = useState<string | null>(null);
+    const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
+
+    // Track container size changes with ResizeObserver
+    useEffect(() => {
+        if (!containerRef.current) return;
+
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const { width, height } = entry.contentRect;
+                if (width > 0 && height > 0) {
+                    setContainerSize({ width, height });
+                }
+            }
+        });
+
+        resizeObserver.observe(containerRef.current);
+        return () => resizeObserver.disconnect();
+    }, []);
 
     // Filter landmarks based on selection (if in edit mode with selections)
     const landmarks = selectedLandmarkIds
@@ -73,14 +91,16 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
     }, [geoJson]);
 
     useEffect(() => {
-        if (!processed || !containerRef.current) return;
+        if (!processed || !containerSize) return;
 
-        const { width, height } = containerRef.current.getBoundingClientRect();
-        if (width === 0 || height === 0) return;
+        const { width, height } = containerSize;
 
-        const padding = 20;
+        // Match poster padding from render effect
+        const posterPadding = Math.min(width, height) * 0.04;
+        const titleAreaHeight = Math.min(width, height) * 0.08; // Reserve space at bottom for title
+        const padding = 20 + posterPadding;
         const projection = d3.geoMercator()
-            .fitExtent([[padding, padding], [width - padding, height - padding]], processed.feature);
+            .fitExtent([[padding, padding], [width - padding, height - padding - titleAreaHeight]], processed.feature);
 
         const topLeft = (projection.invert as (coords: [number, number]) => [number, number] | null)([0, 0]);
         const bottomRight = (projection.invert as (coords: [number, number]) => [number, number] | null)([width, height]);
@@ -93,7 +113,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 minLat: bottomRight[1]
             });
         }
-    }, [processed]);
+    }, [processed, containerSize]);
 
     useEffect(() => {
         if (!viewBbox) return;
@@ -276,18 +296,34 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
     }));
 
     useEffect(() => {
-        if (!processed || !svgRef.current || !containerRef.current) return;
+        if (!processed || !svgRef.current || !containerSize) return;
 
         const svg = d3.select(svgRef.current);
-        const { width, height } = containerRef.current.getBoundingClientRect();
+        const { width, height } = containerSize;
 
         // Clear previous
         svg.selectAll("*").remove();
 
         // 1. Setup Projection
-        const padding = 20;
+        // Poster padding for framing - creates a clean border around the artwork
+        const posterPadding = Math.min(width, height) * 0.04; // 4% of smaller dimension
+        const titleAreaHeight = Math.min(width, height) * 0.08; // Reserve space at bottom for title
+        const padding = 20 + posterPadding;
         const projection = d3.geoMercator()
-            .fitExtent([[padding, padding], [width - padding, height - padding]], processed.feature);
+            .fitExtent([[padding, padding], [width - padding, height - padding - titleAreaHeight]], processed.feature);
+
+        // Create clipping path for contours - stops before title area (title sits in clean white space)
+        const clipId = `poster-clip-${Date.now()}`;
+        svg.append("defs")
+            .append("clipPath")
+            .attr("id", clipId)
+            .append("rect")
+            .attr("x", posterPadding)
+            .attr("y", posterPadding)
+            .attr("width", width - posterPadding * 2)
+            .attr("height", height - posterPadding * 2 - titleAreaHeight)
+            .attr("rx", 2)
+            .attr("ry", 2);
 
         const pathGenerator = d3.geoPath().projection(projection);
 
@@ -317,7 +353,9 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .thresholds(30)
             (Array.from(terrainValues));
 
-        const contourGroup = svg.append("g").attr("class", "contours");
+        const contourGroup = svg.append("g")
+            .attr("class", "contours")
+            .attr("clip-path", `url(#${clipId})`);
 
         contourGroup.selectAll("path")
             .data(contours)
@@ -492,12 +530,10 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             onVisibleLandmarksCalculated?.(visibleLandmarkIds);
         }
 
-        // 5. Render Stats Box
-        const statsGroup = svg.append("g").attr("class", "stats");
-        const boxPadding = 20;
-        const boxX = 28;
-        const boxY = height - 110;
-        const lineHeight = 22;
+        // 5. Render Stat Bar (in the reserved bottom area)
+        const scaleFactor = Math.min(width, height) / 600;
+        const titleFontSize = 18 * scaleFactor;
+        const detailFontSize = 12 * scaleFactor;
 
         // Default values from route data
         const defaultRouteName = processed.name || fileName?.replace(/\.[^/.]+$/, "") || "Route";
@@ -519,66 +555,56 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const displayElevationGain = statsOverrides?.elevationGain ?? (defaultElevationGain > 0 ? Math.round(defaultElevationGain).toString() : '');
         const displayElevationLoss = statsOverrides?.elevationLoss ?? (defaultElevationLoss > 0 ? Math.round(defaultElevationLoss).toString() : '');
 
-        // Format stats
+        // Format stats as a single line
         const distanceText = `${displayDistance} km`;
-        const ascentText = displayElevationGain ? `↑ ${displayElevationGain}m` : '';
-        const descentText = displayElevationLoss ? `↓ ${displayElevationLoss}m` : '';
-        const elevationText = [ascentText, descentText].filter(Boolean).join('  ');
-
-        // Calculate box dimensions
-        const hasElevation = elevationText.length > 0;
-        const boxHeight = hasElevation ? lineHeight * 3 + boxPadding * 2 : lineHeight * 2 + boxPadding * 2;
-
-        // Calculate actual text width based on content
-        const routeNameWidth = routeName.length * 8; // ~8px per character at 16px font
-        const distanceWidth = distanceText.length * 6.5; // ~6.5px per character at 13px font
-        const elevationWidth = elevationText.length * 6.5;
-        const textWidth = Math.max(routeNameWidth, distanceWidth, elevationWidth, 100);
+        const ascentText = displayElevationGain ? `↑${displayElevationGain}m` : '';
+        const descentText = displayElevationLoss ? `↓${displayElevationLoss}m` : '';
+        const statsText = [distanceText, ascentText, descentText].filter(Boolean).join('   ');
 
         // Determine image URL (custom override, default flag, or none)
-        const imageEnabled = imageOverride?.enabled !== false; // Default to true if not specified
+        const imageEnabled = imageOverride?.enabled !== false;
         const imageUrl = imageEnabled
             ? (imageOverride?.url || (countryCode ? `https://flagcdn.com/${countryCode.toLowerCase()}.svg` : null))
             : null;
 
-        // Calculate image dimensions (if image available)
-        const flagHeight = imageUrl ? boxHeight - boxPadding * 2 : 0;
-        const flagWidth = imageUrl ? flagHeight * 1.5 : 0; // Standard flag aspect ratio ~3:2
-        const flagGap = imageUrl ? 6 : 0; // Small gap between text and image
+        // Stat bar area
+        const statBarTop = height - posterPadding - titleAreaHeight;
+        const statBarY = statBarTop + titleAreaHeight / 2;
 
-        const boxWidth = textWidth + flagWidth + flagGap + boxPadding * 2;
+        // Stat bar group
+        const statBarGroup = svg.append("g").attr("class", "stat-bar");
 
-        // Background box
-        statsGroup.append("rect")
-            .attr("x", boxX - boxPadding)
-            .attr("y", boxY - boxPadding - 18)
-            .attr("width", boxWidth)
-            .attr("height", boxHeight)
-            .attr("fill", "white")
-            .attr("stroke", "#e5e5e5")
-            .attr("stroke-width", 1)
-            .attr("rx", 6)
-            .attr("ry", 6);
-
-        // Title with flag on the right
-        const titleGroup = statsGroup.append("g").attr("class", "title");
-
-        // Route name
-        titleGroup.append("text")
-            .attr("x", boxX)
-            .attr("y", boxY)
+        // Route name (left side)
+        statBarGroup.append("text")
+            .attr("x", posterPadding)
+            .attr("y", statBarY + titleFontSize / 3)
             .attr("font-family", "system-ui, sans-serif")
-            .attr("font-size", "16px")
+            .attr("font-size", `${titleFontSize}px`)
             .attr("font-weight", "600")
             .attr("fill", "#171717")
             .text(routeName);
 
-        // Image inside the box on the right (if image available)
-        if (imageUrl) {
-            const flagX = boxX + textWidth + flagGap;
-            const flagY = boxY - boxPadding - 18 + boxPadding;
+        // Stats text (right side, before flag if present)
+        const flagHeight = imageUrl ? titleAreaHeight * 0.6 : 0;
+        const flagWidth = imageUrl ? flagHeight * 1.5 : 0;
+        const flagGap = imageUrl ? 12 * scaleFactor : 0;
+        const statsX = width - posterPadding - flagWidth - flagGap;
 
-            statsGroup.append("image")
+        statBarGroup.append("text")
+            .attr("x", statsX)
+            .attr("y", statBarY + detailFontSize / 3)
+            .attr("text-anchor", "end")
+            .attr("font-family", "system-ui, sans-serif")
+            .attr("font-size", `${detailFontSize}px`)
+            .attr("fill", "#525252")
+            .text(statsText);
+
+        // Flag/image (far right)
+        if (imageUrl) {
+            const flagX = width - posterPadding - flagWidth;
+            const flagY = statBarY - flagHeight / 2;
+
+            statBarGroup.append("image")
                 .attr("x", flagX)
                 .attr("y", flagY)
                 .attr("width", flagWidth)
@@ -587,27 +613,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 .attr("preserveAspectRatio", "xMidYMid meet");
         }
 
-        // Distance
-        statsGroup.append("text")
-            .attr("x", boxX)
-            .attr("y", boxY + lineHeight)
-            .attr("font-family", "system-ui, sans-serif")
-            .attr("font-size", "13px")
-            .attr("fill", "#525252")
-            .text(distanceText);
-
-        // Elevation (if available)
-        if (hasElevation) {
-            statsGroup.append("text")
-                .attr("x", boxX)
-                .attr("y", boxY + lineHeight * 2)
-                .attr("font-family", "system-ui, sans-serif")
-                .attr("font-size", "13px")
-                .attr("fill", "#525252")
-                .text(elevationText);
-        }
-
-    }, [processed, geoJson, elevationData, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride]);
+    }, [processed, geoJson, elevationData, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize]);
 
     return (
         <div ref={containerRef} className="w-full h-full bg-white relative">
