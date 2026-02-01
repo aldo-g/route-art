@@ -200,8 +200,16 @@ export default function ViewPage() {
                 </div>
             </header>
 
-            <div className="flex-1 p-6 flex min-h-0">
-                <div className="flex-1 bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden relative p-12">
+            <div className="flex-1 p-6 flex items-center justify-center min-h-0">
+                <div
+                    className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden relative"
+                    style={{
+                        aspectRatio: '3 / 2',
+                        width: '100%',
+                        maxWidth: 'calc((100vh - 180px) * 1.5)', // 3:2 ratio constraint based on available height
+                        maxHeight: 'calc(100vh - 180px)'
+                    }}
+                >
                     <ArtCanvas
                         ref={canvasRef}
                         geoJson={geoJson}

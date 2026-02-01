@@ -528,7 +528,12 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         // Calculate box dimensions
         const hasElevation = elevationText.length > 0;
         const boxHeight = hasElevation ? lineHeight * 3 + boxPadding * 2 : lineHeight * 2 + boxPadding * 2;
-        const textWidth = Math.max(routeName.length * 10, 160);
+
+        // Calculate actual text width based on content
+        const routeNameWidth = routeName.length * 8; // ~8px per character at 16px font
+        const distanceWidth = distanceText.length * 6.5; // ~6.5px per character at 13px font
+        const elevationWidth = elevationText.length * 6.5;
+        const textWidth = Math.max(routeNameWidth, distanceWidth, elevationWidth, 100);
 
         // Determine image URL (custom override, default flag, or none)
         const imageEnabled = imageOverride?.enabled !== false; // Default to true if not specified
@@ -539,7 +544,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         // Calculate image dimensions (if image available)
         const flagHeight = imageUrl ? boxHeight - boxPadding * 2 : 0;
         const flagWidth = imageUrl ? flagHeight * 1.5 : 0; // Standard flag aspect ratio ~3:2
-        const flagGap = imageUrl ? 20 : 0; // Gap between text and image
+        const flagGap = imageUrl ? 6 : 0; // Small gap between text and image
 
         const boxWidth = textWidth + flagWidth + flagGap + boxPadding * 2;
 
