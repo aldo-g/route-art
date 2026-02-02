@@ -41,6 +41,8 @@ interface ArtCanvasProps {
     imageOverride?: ImageOverride;
     isPlacingLandmark?: boolean;
     isDarkMode?: boolean;
+    showWater?: boolean;
+    showMarkers?: boolean;
     onLandmarksLoaded?: (landmarks: Landmark[]) => void;
     onVisibleLandmarksCalculated?: (visibleIds: number[]) => void;
     onInBoundsLandmarksCalculated?: (inBoundsIds: number[]) => void;
@@ -54,7 +56,7 @@ export interface ArtCanvasHandle {
     exportPDF: (fileName: string) => void;
 }
 
-const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick }, ref) => {
+const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, showWater = true, showMarkers = true, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick }, ref) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const projectionRef = useRef<d3.GeoProjection | null>(null);
@@ -67,6 +69,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
     const [allLandmarks, setAllLandmarks] = useState<Landmark[]>([]);
     const [countryCode, setCountryCode] = useState<string | null>(null);
     const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
+    const [waterData, setWaterData] = useState<GeoJSON.FeatureCollection | null>(null);
 
     // Track container size changes with ResizeObserver
     useEffect(() => {
@@ -249,6 +252,55 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         fetchCountry();
     }, [processed, onCountryCodeDetected]);
 
+    // Fetch water bodies when viewBbox changes
+    useEffect(() => {
+        if (!viewBbox || !showWater) {
+            setWaterData(null);
+            return;
+        }
+
+        // Generate a cache key based on bbox
+        const cacheKey = `water_${viewBbox.minLng.toFixed(4)}_${viewBbox.minLat.toFixed(4)}_${viewBbox.maxLng.toFixed(4)}_${viewBbox.maxLat.toFixed(4)}`;
+
+        // Check sessionStorage for cached water data
+        const cachedWater = sessionStorage.getItem(cacheKey);
+        if (cachedWater) {
+            try {
+                const parsed = JSON.parse(cachedWater);
+                setWaterData(parsed);
+                return;
+            } catch {
+                console.error("Failed to parse cached water data");
+            }
+        }
+
+        const fetchWaterData = async () => {
+            try {
+                const response = await fetch('/api/water', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bbox: viewBbox })
+                });
+                if (!response.ok) {
+                    console.error("Failed to fetch water data");
+                    return;
+                }
+                const data = await response.json();
+                setWaterData(data);
+                // Cache the result
+                try {
+                    sessionStorage.setItem(cacheKey, JSON.stringify(data));
+                } catch {
+                    console.warn("Failed to cache water data (storage limit)");
+                }
+            } catch (err) {
+                console.error("Failed to fetch water data", err);
+            }
+        };
+
+        fetchWaterData();
+    }, [viewBbox, showWater]);
+
     useImperativeHandle(ref, () => ({
         exportSVG: (fileName: string) => {
             if (!svgRef.current) return;
@@ -324,6 +376,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             labelStroke: '#0a0a0a',
             titleFill: '#f5f5f5',
             statsFill: '#a3a3a3',
+            waterFill: '#1a1a1a',
+            waterStroke: '#252525',
         } : {
             background: '#ffffff',
             contourStroke: '#e5e5e5',
@@ -336,6 +390,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             labelStroke: 'white',
             titleFill: '#171717',
             statsFill: '#525252',
+            waterFill: '#f5f5f5',
+            waterStroke: '#e5e5e5',
         };
 
         // Clear previous
@@ -427,6 +483,21 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("stroke", colors.contourStroke)
             .attr("stroke-width", 1);
 
+        // Render water bodies (lakes, rivers, oceans) on top of contours
+        if (showWater && waterData && waterData.features && waterData.features.length > 0) {
+            svg.append("g")
+                .attr("class", "water")
+                .attr("clip-path", `url(#${clipId})`)
+                .selectAll("path")
+                .data(waterData.features)
+                .enter().append("path")
+                .attr("d", (d: GeoJSON.Feature) => pathGenerator(d) || '')
+                .attr("fill", colors.waterFill)
+                .attr("stroke", colors.waterStroke)
+                .attr("stroke-width", 0.5)
+                .attr("stroke-linejoin", "round")
+                .attr("stroke-linecap", "round");
+        }
 
         // 3. Render Route
         const routeGroup = svg.append("g").attr("class", "route");
@@ -460,7 +531,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const firstSegment = coordArrays[0];
         const lastSegment = coordArrays[coordArrays.length - 1];
 
-        if (firstSegment && firstSegment.length >= 1 && lastSegment && lastSegment.length >= 1) {
+        if (showMarkers && firstSegment && firstSegment.length >= 1 && lastSegment && lastSegment.length >= 1) {
             const startCoord = projection(firstSegment[0]);
             const endCoord = projection(lastSegment[lastSegment.length - 1]);
 
@@ -700,7 +771,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             onInBoundsLandmarksCalculated?.(inBoundsLandmarkIds);
         }
 
-        // 5. Render Stat Bar (in the reserved bottom area)
+        // 5. Render Stats (in the reserved bottom area)
         const scaleFactor = Math.min(width, height) / 600;
         const titleFontSize = 18 * scaleFactor;
         const detailFontSize = 12 * scaleFactor;
@@ -752,12 +823,12 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             ? (imageOverride?.url || (countryCode ? `https://flagcdn.com/${countryCode.toLowerCase()}.svg` : null))
             : null;
 
-        // Stat bar area
+        // Stats area
         const statBarTop = height - posterPadding - titleAreaHeight;
         const locationText = statsOverrides?.location || '';
         const hasLocation = !!locationText;
 
-        // Stat bar group
+        // Stats group
         const statBarGroup = svg.append("g").attr("class", "stat-bar");
 
         // Calculate dimensions
@@ -886,7 +957,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 .attr("preserveAspectRatio", "xMidYMid meet");
         }
 
-    }, [processed, geoJson, elevationData, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize, isDarkMode]);
+    }, [processed, geoJson, elevationData, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize, isDarkMode, showWater, waterData, showMarkers]);
 
     return (
         <div ref={containerRef} className={`w-full h-full relative ${isDarkMode ? 'bg-[#0a0a0a]' : 'bg-white'}`}>

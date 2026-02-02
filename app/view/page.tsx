@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import ArtCanvas, { ArtCanvasHandle, StatsOverrides, RouteDefaults, ImageOverride } from '@/components/ArtCanvas';
 import EditPanel from '@/components/EditPanel';
 import { Landmark } from '@/lib/landmarks';
-import { Download, ArrowLeft, Pencil, RectangleHorizontal, RectangleVertical, Moon, Sun } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 export default function ViewPage() {
     const router = useRouter();
@@ -31,14 +31,13 @@ export default function ViewPage() {
     const [countryCode, setCountryCode] = useState<string | null>(null);
 
 
-    // Edit panel state
-    const [editTab, setEditTab] = useState<'landmarks' | 'statbox' | null>(null);
-
     // Poster orientation state
     const [isPortrait, setIsPortrait] = useState(false);
 
     // Canvas dark mode state
     const [isDarkMode, setIsDarkMode] = useState(false);
+    const [showWater, setShowWater] = useState(true);
+    const [showMarkers, setShowMarkers] = useState(true);
 
     // Click-to-place landmark state
     const [isPlacingLandmark, setIsPlacingLandmark] = useState(false);
@@ -77,6 +76,12 @@ export default function ViewPage() {
                 const storedCustomLandmarks = sessionStorage.getItem('routeArtCustomLandmarks');
                 if (storedCustomLandmarks) {
                     setCustomLandmarks(JSON.parse(storedCustomLandmarks));
+                }
+
+                // Restore design toggles
+                const storedShowWater = sessionStorage.getItem('routeArtShowWater');
+                if (storedShowWater !== null) {
+                    setShowWater(storedShowWater === 'true');
                 }
 
             } catch {
@@ -291,6 +296,15 @@ export default function ViewPage() {
         setCountryCode(code);
     }, []);
 
+    const handleToggleWater = (value: boolean) => {
+        setShowWater(value);
+        try {
+            sessionStorage.setItem('routeArtShowWater', value ? 'true' : 'false');
+        } catch {
+            console.warn('Failed to save design preference to sessionStorage');
+        }
+    };
+
     const handleExportSVG = () => {
         canvasRef.current?.exportSVG(fileName);
     };
@@ -306,6 +320,7 @@ export default function ViewPage() {
         sessionStorage.removeItem('routeArtStatsOverrides');
         sessionStorage.removeItem('routeArtImageOverride');
         sessionStorage.removeItem('routeArtCustomLandmarks');
+        sessionStorage.removeItem('routeArtShowWater');
         router.push('/');
     };
 
@@ -319,63 +334,16 @@ export default function ViewPage() {
 
     return (
         <main className="h-screen bg-neutral-100 text-neutral-900 flex flex-col font-sans overflow-hidden">
-            <header className="p-6 border-b border-neutral-200 bg-white flex justify-between items-center">
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={handleBack}
-                        className="flex items-center gap-2 text-neutral-500 hover:text-neutral-800 transition-colors text-sm"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        New Route
-                    </button>
-                    <div className="h-4 w-px bg-neutral-200" />
-                    <h1 className="text-xl font-bold tracking-tight">Contour Maps</h1>
-                </div>
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setIsDarkMode(!isDarkMode)}
-                        className="flex items-center gap-2 px-4 py-2 border border-neutral-300 bg-white text-neutral-900 rounded-md hover:bg-neutral-50 transition-colors text-sm font-medium"
-                        title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-                    >
-                        {isDarkMode ? (
-                            <Sun className="w-4 h-4" />
-                        ) : (
-                            <Moon className="w-4 h-4" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setIsPortrait(!isPortrait)}
-                        className="flex items-center gap-2 px-4 py-2 border border-neutral-300 bg-white text-neutral-900 rounded-md hover:bg-neutral-50 transition-colors text-sm font-medium"
-                        title={isPortrait ? 'Switch to landscape' : 'Switch to portrait'}
-                    >
-                        {isPortrait ? (
-                            <RectangleHorizontal className="w-4 h-4" />
-                        ) : (
-                            <RectangleVertical className="w-4 h-4" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setEditTab('landmarks')}
-                        className="flex items-center gap-2 px-4 py-2 border border-neutral-300 bg-white text-neutral-900 rounded-md hover:bg-neutral-50 transition-colors text-sm font-medium"
-                    >
-                        <Pencil className="w-4 h-4" />
-                        Edit
-                    </button>
-                    <button
-                        onClick={handleExportSVG}
-                        className="flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white rounded-md hover:bg-neutral-800 transition-colors text-sm font-medium"
-                    >
-                        <Download className="w-4 h-4" />
-                        SVG
-                    </button>
-                    <button
-                        onClick={handleExportPDF}
-                        className="flex items-center gap-2 px-4 py-2 border border-neutral-300 bg-white text-neutral-900 rounded-md hover:bg-neutral-50 transition-colors text-sm font-medium"
-                    >
-                        <Download className="w-4 h-4" />
-                        PDF
-                    </button>
-                </div>
+            <header className="p-4 border-b border-neutral-200 bg-white flex items-center gap-4">
+                <button
+                    onClick={handleBack}
+                    className="flex items-center gap-2 text-neutral-500 hover:text-neutral-800 transition-colors text-sm"
+                >
+                    <ArrowLeft className="w-4 h-4" />
+                    New Route
+                </button>
+                <div className="h-4 w-px bg-neutral-200" />
+                <h1 className="text-lg font-bold tracking-tight">Contour Maps</h1>
             </header>
 
             <div className="flex-1 flex min-h-0 overflow-hidden">
@@ -403,6 +371,8 @@ export default function ViewPage() {
                             imageOverride={imageOverride}
                             isPlacingLandmark={isPlacingLandmark}
                             isDarkMode={isDarkMode}
+                            showWater={showWater}
+                            showMarkers={showMarkers}
                             onLandmarksLoaded={handleLandmarksLoaded}
                             onVisibleLandmarksCalculated={handleVisibleLandmarksCalculated}
                             onInBoundsLandmarksCalculated={handleInBoundsLandmarksCalculated}
@@ -412,28 +382,34 @@ export default function ViewPage() {
                         />
                     </div>
                 </div>
-                {editTab && (
-                    <EditPanel
-                        landmarks={combinedLandmarks}
-                        selectedLandmarkIds={selectedLandmarkIds ?? new Set()}
-                        onToggleLandmark={handleToggleLandmark}
-                        onSelectAllLandmarks={handleSelectAll}
-                        onDeselectAllLandmarks={handleDeselectAll}
-                        onDeleteCustomLandmark={handleDeleteCustomLandmark}
-                        onAddCustomLandmark={handleAddCustomLandmark}
-                        isPlacingLandmark={isPlacingLandmark}
-                        onStartPlacingLandmark={handleStartPlacingLandmark}
-                        onCancelPlacingLandmark={handleCancelPlacingLandmark}
-                        statsDefaults={routeDefaults}
-                        statsOverrides={statsOverrides}
-                        onSaveStats={handleStatsOverridesSave}
-                        countryCode={countryCode}
-                        imageOverride={imageOverride}
-                        onSaveImage={handleImageOverrideSave}
-                        initialTab={editTab}
-                        onClose={() => setEditTab(null)}
-                    />
-                )}
+                <EditPanel
+                    landmarks={combinedLandmarks}
+                    selectedLandmarkIds={selectedLandmarkIds ?? new Set()}
+                    onToggleLandmark={handleToggleLandmark}
+                    onSelectAllLandmarks={handleSelectAll}
+                    onDeselectAllLandmarks={handleDeselectAll}
+                    onDeleteCustomLandmark={handleDeleteCustomLandmark}
+                    onAddCustomLandmark={handleAddCustomLandmark}
+                    isPlacingLandmark={isPlacingLandmark}
+                    onStartPlacingLandmark={handleStartPlacingLandmark}
+                    onCancelPlacingLandmark={handleCancelPlacingLandmark}
+                    statsDefaults={routeDefaults}
+                    statsOverrides={statsOverrides}
+                    onSaveStats={handleStatsOverridesSave}
+                    countryCode={countryCode}
+                    imageOverride={imageOverride}
+                    onSaveImage={handleImageOverrideSave}
+                    showWater={showWater}
+                    onToggleWater={handleToggleWater}
+                    showMarkers={showMarkers}
+                    onToggleMarkers={setShowMarkers}
+                    isPortrait={isPortrait}
+                    onToggleOrientation={setIsPortrait}
+                    isDarkMode={isDarkMode}
+                    onToggleDarkMode={setIsDarkMode}
+                    onExportSVG={handleExportSVG}
+                    onExportPDF={handleExportPDF}
+                />
             </div>
         </main>
     );

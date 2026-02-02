@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { X, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star } from 'lucide-react';
+import { ChevronDown, ChevronRight, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star, Download } from 'lucide-react';
 import { Landmark } from '@/lib/landmarks';
 
 export interface StatsOverrides {
@@ -27,8 +27,6 @@ export interface ImageOverride {
     enabled: boolean;
 }
 
-type TabType = 'landmarks' | 'statbox';
-
 interface EditPanelProps {
     // Landmarks props
     landmarks: Landmark[];
@@ -50,9 +48,18 @@ interface EditPanelProps {
     countryCode: string | null;
     imageOverride: ImageOverride;
     onSaveImage: (override: ImageOverride) => void;
-    // General
-    initialTab?: TabType;
-    onClose: () => void;
+    // Design props
+    showWater: boolean;
+    onToggleWater: (value: boolean) => void;
+    showMarkers: boolean;
+    onToggleMarkers: (value: boolean) => void;
+    isPortrait: boolean;
+    onToggleOrientation: (value: boolean) => void;
+    isDarkMode: boolean;
+    onToggleDarkMode: (value: boolean) => void;
+    // Download props
+    onExportSVG: () => void;
+    onExportPDF: () => void;
 }
 
 const getLandmarkIcon = (type: Landmark['type']) => {
@@ -68,6 +75,34 @@ const getLandmarkIcon = (type: Landmark['type']) => {
             return <Mountain className="w-3 h-3" />;
     }
 };
+
+interface CollapsibleSectionProps {
+    title: string;
+    icon: React.ReactNode;
+    isOpen: boolean;
+    onToggle: () => void;
+    children: React.ReactNode;
+}
+
+function CollapsibleSection({ title, icon, isOpen, onToggle, children }: CollapsibleSectionProps) {
+    return (
+        <div className="border-b border-neutral-200">
+            <button
+                onClick={onToggle}
+                className="w-full flex items-center gap-2 p-3 hover:bg-neutral-50 transition-colors"
+            >
+                {isOpen ? <ChevronDown className="w-4 h-4 text-neutral-400" /> : <ChevronRight className="w-4 h-4 text-neutral-400" />}
+                <span className="text-neutral-500">{icon}</span>
+                <span className="text-sm font-medium">{title}</span>
+            </button>
+            {isOpen && (
+                <div className="px-3 pb-3">
+                    {children}
+                </div>
+            )}
+        </div>
+    );
+}
 
 export default function EditPanel({
     landmarks,
@@ -86,10 +121,28 @@ export default function EditPanel({
     countryCode,
     imageOverride,
     onSaveImage,
-    initialTab = 'landmarks',
-    onClose
+    showWater,
+    onToggleWater,
+    showMarkers,
+    onToggleMarkers,
+    isPortrait,
+    onToggleOrientation,
+    isDarkMode,
+    onToggleDarkMode,
+    onExportSVG,
+    onExportPDF,
 }: EditPanelProps) {
-    const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+    // Section open/closed state
+    const [sectionsOpen, setSectionsOpen] = useState({
+        landmarks: true,
+        statbar: false,
+        design: false,
+        download: false,
+    });
+
+    const toggleSection = (section: keyof typeof sectionsOpen) => {
+        setSectionsOpen(prev => ({ ...prev, [section]: !prev[section] }));
+    };
 
     // Custom landmark form state
     const [showAddForm, setShowAddForm] = useState(false);
@@ -125,7 +178,7 @@ export default function EditPanel({
     const [dateEnd, setDateEnd] = useState(statsOverrides.dateEnd ?? '');
     const [isDateRange, setIsDateRange] = useState(!!statsOverrides.dateEnd);
 
-    // Image editing state - changes save immediately
+    // Image editing state
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleSaveStats = () => {
@@ -164,7 +217,6 @@ export default function EditPanel({
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Convert file to data URL
         const reader = new FileReader();
         reader.onload = (event) => {
             const dataUrl = event.target?.result as string;
@@ -174,8 +226,6 @@ export default function EditPanel({
             });
         };
         reader.readAsDataURL(file);
-
-        // Reset input so same file can be selected again
         e.target.value = '';
     };
 
@@ -196,7 +246,6 @@ export default function EditPanel({
     const handleStartPlacing = () => {
         if (!newLandmarkName.trim()) return;
         onStartPlacingLandmark(newLandmarkName.trim(), newLandmarkIcon, newLandmarkElevation || undefined);
-        // Reset form after starting placement
         setNewLandmarkName('');
         setNewLandmarkElevation('');
         setNewLandmarkIcon('custom');
@@ -233,7 +282,6 @@ export default function EditPanel({
             isCustom: true
         });
 
-        // Reset form
         setNewLandmarkName('');
         setNewLandmarkElevation('');
         setNewLandmarkIcon('custom');
@@ -245,55 +293,26 @@ export default function EditPanel({
 
     const selectedCount = selectedLandmarkIds.size;
     const totalCount = landmarks.length;
-
     const defaultFlagUrl = countryCode ? `https://flagcdn.com/${countryCode.toLowerCase()}.svg` : null;
 
-    const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
-        { id: 'landmarks', label: 'Landmarks', icon: <MapPin className="w-3.5 h-3.5" /> },
-        { id: 'statbox', label: 'Stat Bar', icon: <Mountain className="w-3.5 h-3.5" /> },
-    ];
-
     return (
-        <div className="w-80 h-full max-h-full bg-white border-l border-neutral-200 shadow-lg flex flex-col flex-shrink-0 overflow-hidden">
+        <div className="w-72 h-full max-h-full bg-white border-l border-neutral-200 flex flex-col flex-shrink-0 overflow-hidden">
             {/* Header */}
-            <div className="p-4 border-b border-neutral-200 flex items-center justify-between">
-                <div>
-                    <h3 className="font-semibold text-sm">Edit</h3>
-                    <p className="text-xs text-neutral-400 mt-0.5">
-                        Customize your route art
-                    </p>
-                </div>
-                <button
-                    onClick={onClose}
-                    className="p-1 hover:bg-neutral-100 rounded transition-colors"
-                >
-                    <X className="w-4 h-4" />
-                </button>
+            <div className="p-4 border-b border-neutral-200">
+                <h3 className="font-semibold text-sm">Customize</h3>
             </div>
 
-            {/* Tabs */}
-            <div className="flex border-b border-neutral-200">
-                {tabs.map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
-                            activeTab === tab.id
-                                ? 'text-neutral-900 border-b-2 border-neutral-900 -mb-px'
-                                : 'text-neutral-500 hover:text-neutral-700'
-                        }`}
-                    >
-                        {tab.icon}
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
-
-            {/* Tab Content */}
+            {/* Collapsible Sections */}
             <div className="flex-1 overflow-y-auto">
-                {activeTab === 'landmarks' && (
-                    <div className="flex flex-col h-full">
-                        <div className="p-2 border-b border-neutral-100 flex gap-2">
+                {/* Landmarks Section */}
+                <CollapsibleSection
+                    title="Landmarks"
+                    icon={<MapPin className="w-4 h-4" />}
+                    isOpen={sectionsOpen.landmarks}
+                    onToggle={() => toggleSection('landmarks')}
+                >
+                    <div className="space-y-2">
+                        <div className="flex gap-2">
                             <button
                                 onClick={onSelectAllLandmarks}
                                 className="flex-1 text-xs py-1.5 px-2 bg-neutral-100 hover:bg-neutral-200 rounded transition-colors"
@@ -309,18 +328,9 @@ export default function EditPanel({
                         </div>
 
                         {/* Add Custom Landmark */}
-                        <div className="p-2 border-b border-neutral-100">
+                        <div className="border-t border-neutral-100 pt-2">
                             {isPlacingLandmark ? (
                                 <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-medium text-neutral-600">Placing landmark...</span>
-                                        <button
-                                            onClick={onCancelPlacingLandmark}
-                                            className="p-1 hover:bg-neutral-100 rounded"
-                                        >
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    </div>
                                     <p className="text-xs text-neutral-500 text-center py-2">
                                         Click on the map to place your landmark
                                     </p>
@@ -343,12 +353,7 @@ export default function EditPanel({
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
                                         <span className="text-xs font-medium text-neutral-600">New Landmark</span>
-                                        <button
-                                            onClick={handleCancelForm}
-                                            className="p-1 hover:bg-neutral-100 rounded"
-                                        >
-                                            <X className="w-3 h-3" />
-                                        </button>
+                                        <button onClick={handleCancelForm} className="text-xs text-neutral-400 hover:text-neutral-600">Cancel</button>
                                     </div>
                                     <input
                                         type="text"
@@ -381,8 +386,6 @@ export default function EditPanel({
                                         onChange={(e) => setNewLandmarkElevation(e.target.value)}
                                         className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
                                     />
-
-                                    {/* Toggle between click-to-place and manual coords */}
                                     <div className="flex gap-1">
                                         <button
                                             type="button"
@@ -407,7 +410,6 @@ export default function EditPanel({
                                             Enter coordinates
                                         </button>
                                     </div>
-
                                     {useManualCoords ? (
                                         <>
                                             <div className="flex gap-2">
@@ -429,24 +431,17 @@ export default function EditPanel({
                                             <button
                                                 onClick={handleAddWithCoords}
                                                 disabled={!newLandmarkName.trim() || !newLandmarkLat || !newLandmarkLng}
-                                                className="w-full py-1.5 text-xs bg-neutral-900 text-white rounded hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                                                className="w-full py-1.5 text-xs bg-neutral-900 text-white rounded hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
                                             >
-                                                <Plus className="w-3 h-3" />
                                                 Add Landmark
                                             </button>
-                                            {!newLandmarkName.trim() && newLandmarkLat && newLandmarkLng && (
-                                                <p className="text-[10px] text-amber-600 text-center">
-                                                    Please enter a name above
-                                                </p>
-                                            )}
                                         </>
                                     ) : (
                                         <button
                                             onClick={handleStartPlacing}
                                             disabled={!newLandmarkName.trim()}
-                                            className="w-full py-1.5 text-xs bg-neutral-900 text-white rounded hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                                            className="w-full py-1.5 text-xs bg-neutral-900 text-white rounded hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
                                         >
-                                            <MapPin className="w-3 h-3" />
                                             Click on map to place
                                         </button>
                                     )}
@@ -454,12 +449,13 @@ export default function EditPanel({
                             )}
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-2">
-                            <p className="text-xs text-neutral-400 mb-2 px-2">
+                        {/* Landmarks List */}
+                        <div className="border-t border-neutral-100 pt-2 max-h-48 overflow-y-auto">
+                            <p className="text-xs text-neutral-400 mb-2">
                                 {selectedCount} of {totalCount} selected
                             </p>
                             {landmarks.length === 0 ? (
-                                <p className="text-xs text-neutral-400 text-center py-8">
+                                <p className="text-xs text-neutral-400 text-center py-4">
                                     No landmarks found near this route
                                 </p>
                             ) : (
@@ -467,7 +463,7 @@ export default function EditPanel({
                                     {landmarks.map(landmark => (
                                         <div
                                             key={landmark.id}
-                                            className={`flex items-center gap-3 p-2 rounded transition-colors ${
+                                            className={`flex items-center gap-2 p-1.5 rounded transition-colors ${
                                                 selectedLandmarkIds.has(landmark.id)
                                                     ? 'bg-neutral-100'
                                                     : 'hover:bg-neutral-50'
@@ -477,33 +473,27 @@ export default function EditPanel({
                                                 type="checkbox"
                                                 checked={selectedLandmarkIds.has(landmark.id)}
                                                 onChange={() => onToggleLandmark(landmark.id)}
-                                                className="w-4 h-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500 cursor-pointer"
+                                                className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500 cursor-pointer"
                                             />
                                             <span className="text-neutral-400">
                                                 {getLandmarkIcon(landmark.type)}
                                             </span>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium truncate">
+                                                <p className="text-xs font-medium truncate">
                                                     {landmark.name}
                                                     {landmark.isCustom && (
-                                                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 bg-neutral-200 text-neutral-500 rounded">
+                                                        <span className="ml-1 text-[9px] px-1 py-0.5 bg-neutral-200 text-neutral-500 rounded">
                                                             custom
                                                         </span>
                                                     )}
-                                                </p>
-                                                <p className="text-xs text-neutral-400">
-                                                    {landmark.elevation ? `${Math.round(landmark.elevation)}m` : ''}
-                                                    {landmark.elevation && landmark.distanceToRoute ? ' · ' : ''}
-                                                    {landmark.distanceToRoute ? `${landmark.distanceToRoute.toFixed(1)}km from route` : ''}
                                                 </p>
                                             </div>
                                             {landmark.isCustom && (
                                                 <button
                                                     onClick={() => onDeleteCustomLandmark(landmark.id)}
-                                                    className="p-1 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                                                    title="Delete custom landmark"
+                                                    className="p-0.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                                                 >
-                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                    <Trash2 className="w-3 h-3" />
                                                 </button>
                                             )}
                                         </div>
@@ -512,235 +502,257 @@ export default function EditPanel({
                             )}
                         </div>
                     </div>
-                )}
+                </CollapsibleSection>
 
-                {activeTab === 'statbox' && (
-                    <div className="p-4 space-y-4">
-                        {!statsDefaults ? (
-                            <p className="text-xs text-neutral-400 text-center py-8">
-                                Loading route data...
-                            </p>
-                        ) : (
-                            <>
-                                <div>
-                                    <label className="block text-xs font-medium text-neutral-600 mb-1">
-                                        Route Name
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={routeName}
-                                        onChange={(e) => setRouteName(e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-medium text-neutral-600 mb-1">
-                                        Location
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={location}
-                                        onChange={(e) => setLocation(e.target.value)}
-                                        placeholder="e.g. Albanian Alps, Albania"
-                                        className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-medium text-neutral-600 mb-1">
-                                        Distance (km)
-                                    </label>
+                {/* Stats Section */}
+                <CollapsibleSection
+                    title="Stats"
+                    icon={<Mountain className="w-4 h-4" />}
+                    isOpen={sectionsOpen.statbar}
+                    onToggle={() => toggleSection('statbar')}
+                >
+                    {!statsDefaults ? (
+                        <p className="text-xs text-neutral-400 text-center py-4">Loading...</p>
+                    ) : (
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-xs font-medium text-neutral-600 mb-1">Route Name</label>
+                                <input
+                                    type="text"
+                                    value={routeName}
+                                    onChange={(e) => setRouteName(e.target.value)}
+                                    className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-neutral-600 mb-1">Location</label>
+                                <input
+                                    type="text"
+                                    value={location}
+                                    onChange={(e) => setLocation(e.target.value)}
+                                    placeholder="e.g. Albanian Alps, Albania"
+                                    className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                                />
+                            </div>
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <label className="block text-xs font-medium text-neutral-600 mb-1">Distance (km)</label>
                                     <input
                                         type="text"
                                         value={distance}
                                         onChange={(e) => setDistance(e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+                                        className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
                                     />
                                 </div>
-
-                                <div>
-                                    <label className="block text-xs font-medium text-neutral-600 mb-1">
-                                        Elevation Gain (m)
-                                    </label>
+                            </div>
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <label className="block text-xs font-medium text-neutral-600 mb-1">Gain (m)</label>
                                     <input
                                         type="text"
                                         value={elevationGain}
                                         onChange={(e) => setElevationGain(e.target.value)}
-                                        placeholder="0"
-                                        className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+                                        className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
                                     />
                                 </div>
-
-                                <div>
-                                    <label className="block text-xs font-medium text-neutral-600 mb-1">
-                                        Elevation Loss (m)
-                                    </label>
+                                <div className="flex-1">
+                                    <label className="block text-xs font-medium text-neutral-600 mb-1">Loss (m)</label>
                                     <input
                                         type="text"
                                         value={elevationLoss}
                                         onChange={(e) => setElevationLoss(e.target.value)}
-                                        placeholder="0"
-                                        className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+                                        className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
                                     />
                                 </div>
-
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="block text-xs font-medium text-neutral-600">
-                                            Date
-                                        </label>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsDateRange(!isDateRange)}
-                                            className="text-[10px] text-neutral-500 hover:text-neutral-700 transition-colors"
-                                        >
-                                            {isDateRange ? 'Single date' : 'Date range'}
-                                        </button>
-                                    </div>
-                                    <div className={`flex gap-2 ${isDateRange ? '' : ''}`}>
-                                        <input
-                                            type="date"
-                                            value={dateStart}
-                                            onChange={(e) => setDateStart(e.target.value)}
-                                            className="flex-1 px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
-                                        />
-                                        {isDateRange && (
-                                            <>
-                                                <span className="flex items-center text-neutral-400 text-sm">–</span>
-                                                <input
-                                                    type="date"
-                                                    value={dateEnd}
-                                                    onChange={(e) => setDateEnd(e.target.value)}
-                                                    className="flex-1 px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
-                                                />
-                                            </>
-                                        )}
-                                    </div>
+                            </div>
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-xs font-medium text-neutral-600">Date</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsDateRange(!isDateRange)}
+                                        className="text-[10px] text-neutral-500 hover:text-neutral-700"
+                                    >
+                                        {isDateRange ? 'Single date' : 'Date range'}
+                                    </button>
                                 </div>
-
-                                <button
-                                    onClick={handleResetStats}
-                                    className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
-                                >
-                                    Reset to original values
-                                </button>
-
-                                {/* Divider */}
-                                <div className="border-t border-neutral-200 pt-4">
-                                    <h4 className="text-xs font-medium text-neutral-600 mb-3">Image</h4>
-
-                                    <label className="flex items-center gap-2 cursor-pointer mb-3">
-                                        <input
-                                            type="checkbox"
-                                            checked={imageOverride.enabled}
-                                            onChange={(e) => handleToggleImageEnabled(e.target.checked)}
-                                            className="w-4 h-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
-                                        />
-                                        <span className="text-sm text-neutral-700">
-                                            Show image
-                                        </span>
-                                    </label>
-
-                                    {imageOverride.enabled && (
+                                <div className="flex gap-2">
+                                    <input
+                                        type="date"
+                                        value={dateStart}
+                                        onChange={(e) => setDateStart(e.target.value)}
+                                        className="flex-1 px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                                    />
+                                    {isDateRange && (
                                         <>
-                                            {/* Current Image */}
-                                            <div className="mb-3">
-                                                {imageOverride.url ? (
-                                                    <div className="flex items-center gap-3 p-3 bg-neutral-50 rounded-md border border-neutral-100">
-                                                        <img
-                                                            src={imageOverride.url}
-                                                            alt="Custom image"
-                                                            className="h-10 w-auto rounded shadow-sm"
-                                                        />
-                                                        <div className="flex-1">
-                                                            <span className="text-xs text-neutral-500">
-                                                                Custom image
-                                                            </span>
-                                                        </div>
-                                                        <button
-                                                            onClick={handleRemoveCustomImage}
-                                                            className="p-1.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                                                            title="Remove custom image"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                ) : defaultFlagUrl ? (
-                                                    <div className="flex items-center gap-3 p-3 bg-neutral-50 rounded-md border border-neutral-100">
-                                                        <img
-                                                            src={defaultFlagUrl}
-                                                            alt="Country flag"
-                                                            className="h-10 w-auto rounded shadow-sm"
-                                                        />
-                                                        <span className="text-xs text-neutral-500">
-                                                            {countryCode} flag (auto-detected)
-                                                        </span>
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-xs text-neutral-400 p-3 bg-neutral-50 rounded-md border border-neutral-100">
-                                                        No country detected for this route
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            {/* Upload Custom Image */}
-                                            <div>
-                                                <input
-                                                    ref={fileInputRef}
-                                                    type="file"
-                                                    accept="image/*"
-                                                    onChange={handleFileUpload}
-                                                    className="hidden"
-                                                />
-                                                <button
-                                                    onClick={() => fileInputRef.current?.click()}
-                                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-neutral-200 rounded-md hover:border-neutral-400 hover:bg-neutral-50 transition-colors text-sm text-neutral-600"
-                                                >
-                                                    <Upload className="w-4 h-4" />
-                                                    Upload custom image
-                                                </button>
-                                            </div>
-
-                                            {imageOverride.url && (
-                                                <button
-                                                    onClick={handleResetImage}
-                                                    className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors mt-2"
-                                                >
-                                                    Reset to default flag
-                                                </button>
-                                            )}
+                                            <span className="flex items-center text-neutral-400 text-xs">–</span>
+                                            <input
+                                                type="date"
+                                                value={dateEnd}
+                                                onChange={(e) => setDateEnd(e.target.value)}
+                                                className="flex-1 px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                                            />
                                         </>
                                     )}
                                 </div>
-                            </>
-                        )}
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleSaveStats}
+                                    className="flex-1 py-1.5 text-xs bg-neutral-900 text-white rounded hover:bg-neutral-800 transition-colors"
+                                >
+                                    Save Changes
+                                </button>
+                                <button
+                                    onClick={handleResetStats}
+                                    className="py-1.5 px-3 text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
+                                >
+                                    Reset
+                                </button>
+                            </div>
+
+                            {/* Image subsection */}
+                            <div className="border-t border-neutral-100 pt-3 mt-3">
+                                <label className="flex items-center gap-2 cursor-pointer mb-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={imageOverride.enabled}
+                                        onChange={(e) => handleToggleImageEnabled(e.target.checked)}
+                                        className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
+                                    />
+                                    <span className="text-xs text-neutral-700">Show image/flag</span>
+                                </label>
+                                {imageOverride.enabled && (
+                                    <>
+                                        <div className="mb-2">
+                                            {imageOverride.url ? (
+                                                <div className="flex items-center gap-2 p-2 bg-neutral-50 rounded border border-neutral-100">
+                                                    <img src={imageOverride.url} alt="Custom" className="h-8 w-auto rounded" />
+                                                    <span className="text-[10px] text-neutral-500 flex-1">Custom image</span>
+                                                    <button onClick={handleRemoveCustomImage} className="p-1 text-neutral-400 hover:text-red-500">
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            ) : defaultFlagUrl ? (
+                                                <div className="flex items-center gap-2 p-2 bg-neutral-50 rounded border border-neutral-100">
+                                                    <img src={defaultFlagUrl} alt="Flag" className="h-8 w-auto rounded" />
+                                                    <span className="text-[10px] text-neutral-500">{countryCode} flag</span>
+                                                </div>
+                                            ) : (
+                                                <p className="text-[10px] text-neutral-400 p-2 bg-neutral-50 rounded border border-neutral-100">No country detected</p>
+                                            )}
+                                        </div>
+                                        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                                        <button
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 border border-dashed border-neutral-200 rounded text-xs text-neutral-600 hover:border-neutral-400 hover:bg-neutral-50"
+                                        >
+                                            <Upload className="w-3 h-3" />
+                                            Upload custom image
+                                        </button>
+                                        {imageOverride.url && (
+                                            <button onClick={handleResetImage} className="text-[10px] text-neutral-500 hover:text-neutral-700 mt-1">
+                                                Reset to default flag
+                                            </button>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </CollapsibleSection>
+
+                {/* Design Section */}
+                <CollapsibleSection
+                    title="Design"
+                    icon={<Droplets className="w-4 h-4" />}
+                    isOpen={sectionsOpen.design}
+                    onToggle={() => toggleSection('design')}
+                >
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs text-neutral-700">Water shading</span>
+                            <input
+                                type="checkbox"
+                                checked={showWater}
+                                onChange={(e) => onToggleWater(e.target.checked)}
+                                className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
+                            />
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs text-neutral-700">Start/End markers</span>
+                            <input
+                                type="checkbox"
+                                checked={showMarkers}
+                                onChange={(e) => onToggleMarkers(e.target.checked)}
+                                className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
+                            />
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs text-neutral-700">Orientation</span>
+                            <div className="flex gap-1">
+                                <button
+                                    onClick={() => onToggleOrientation(false)}
+                                    className={`px-2 py-1 text-[10px] rounded border transition-colors ${
+                                        !isPortrait
+                                            ? 'bg-neutral-900 text-white border-neutral-900'
+                                            : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                    }`}
+                                >
+                                    Landscape
+                                </button>
+                                <button
+                                    onClick={() => onToggleOrientation(true)}
+                                    className={`px-2 py-1 text-[10px] rounded border transition-colors ${
+                                        isPortrait
+                                            ? 'bg-neutral-900 text-white border-neutral-900'
+                                            : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                    }`}
+                                >
+                                    Portrait
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs text-neutral-700">Dark mode</span>
+                            <input
+                                type="checkbox"
+                                checked={isDarkMode}
+                                onChange={(e) => onToggleDarkMode(e.target.checked)}
+                                className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
+                            />
+                        </div>
                     </div>
-                )}
+                </CollapsibleSection>
+
+                {/* Download Section */}
+                <CollapsibleSection
+                    title="Download"
+                    icon={<Download className="w-4 h-4" />}
+                    isOpen={sectionsOpen.download}
+                    onToggle={() => toggleSection('download')}
+                >
+                    <div className="space-y-2">
+                        <button
+                            onClick={onExportSVG}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded hover:bg-neutral-800 transition-colors"
+                        >
+                            <Download className="w-4 h-4" />
+                            Download SVG
+                        </button>
+                        <button
+                            onClick={onExportPDF}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 border border-neutral-300 text-neutral-900 text-sm font-medium rounded hover:bg-neutral-50 transition-colors"
+                        >
+                            <Download className="w-4 h-4" />
+                            Download PDF
+                        </button>
+                        <p className="text-[10px] text-neutral-400 text-center">
+                            SVG recommended for printing
+                        </p>
+                    </div>
+                </CollapsibleSection>
             </div>
-
-            {/* Footer with Save */}
-            {activeTab === 'statbox' && (
-                <div className="p-3 border-t border-neutral-200">
-                    <button
-                        onClick={handleSaveStats}
-                        className="w-full py-2 bg-neutral-900 text-white text-sm font-medium rounded hover:bg-neutral-800 transition-colors"
-                    >
-                        Save Changes
-                    </button>
-                </div>
-            )}
-
-            {activeTab === 'landmarks' && (
-                <div className="p-3 border-t border-neutral-200">
-                    <button
-                        onClick={onClose}
-                        className="w-full py-2 bg-neutral-900 text-white text-sm font-medium rounded hover:bg-neutral-800 transition-colors"
-                    >
-                        Done
-                    </button>
-                </div>
-            )}
         </div>
     );
 }
