@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { ChevronDown, ChevronRight, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star, Download } from 'lucide-react';
+import { ChevronDown, ChevronRight, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star, Download, Heart, X } from 'lucide-react';
 import { Landmark } from '@/lib/landmarks';
 
 export interface StatsOverrides {
@@ -177,6 +177,19 @@ export default function EditPanel({
     const [dateStart, setDateStart] = useState(statsOverrides.dateStart ?? '');
     const [dateEnd, setDateEnd] = useState(statsOverrides.dateEnd ?? '');
     const [isDateRange, setIsDateRange] = useState(!!statsOverrides.dateEnd);
+
+    // Tip modal state
+    const [showTipModal, setShowTipModal] = useState(false);
+
+    const handleDownloadSVG = () => {
+        onExportSVG();
+        setShowTipModal(true);
+    };
+
+    const handleDownloadPDF = () => {
+        onExportPDF();
+        setShowTipModal(true);
+    };
 
     // Image editing state
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -749,14 +762,14 @@ export default function EditPanel({
                 >
                     <div className="space-y-2">
                         <button
-                            onClick={onExportSVG}
+                            onClick={handleDownloadSVG}
                             className="w-full flex items-center justify-center gap-2 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded hover:bg-neutral-800 transition-colors"
                         >
                             <Download className="w-4 h-4" />
                             Download SVG
                         </button>
                         <button
-                            onClick={onExportPDF}
+                            onClick={handleDownloadPDF}
                             className="w-full flex items-center justify-center gap-2 py-2.5 border border-neutral-300 text-neutral-900 text-sm font-medium rounded hover:bg-neutral-50 transition-colors"
                         >
                             <Download className="w-4 h-4" />
@@ -777,6 +790,48 @@ export default function EditPanel({
                     Purchase Print
                 </button>
             </div>
+
+            {/* Tip Modal */}
+            {showTipModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl shadow-xl max-w-sm mx-4 overflow-hidden">
+                        <div className="p-6 text-center">
+                            <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Heart className="w-6 h-6 text-pink-500" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-neutral-900 mb-2">
+                                Enjoy your download!
+                            </h3>
+                            <p className="text-sm text-neutral-600 mb-6">
+                                If you found this tool useful, consider supporting its development with a small tip.
+                            </p>
+                            <div className="space-y-3">
+                                <a
+                                    href="https://ko-fi.com/aligrant"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full flex items-center justify-center gap-2 py-3 bg-[#FF5E5B] text-white text-sm font-medium rounded-lg hover:bg-[#e54e4b] transition-colors"
+                                >
+                                    <Heart className="w-4 h-4" />
+                                    Support on Ko-fi
+                                </a>
+                                <button
+                                    onClick={() => setShowTipModal(false)}
+                                    className="w-full py-2 text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
+                                >
+                                    Maybe later
+                                </button>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setShowTipModal(false)}
+                            className="absolute top-3 right-3 p-1 text-neutral-400 hover:text-neutral-600 transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

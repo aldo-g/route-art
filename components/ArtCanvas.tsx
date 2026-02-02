@@ -899,10 +899,10 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         statBarGroup.append("text")
             .attr("x", posterPadding)
             .attr("y", titleY)
-            .attr("font-family", "system-ui, sans-serif")
+            .attr("font-family", "Inter, system-ui, sans-serif")
             .attr("font-size", `${titleFontSize}px`)
-            .attr("font-weight", "600")
-            .attr("letter-spacing", "0.1em")
+            .attr("font-weight", "500")
+            .attr("letter-spacing", "0.03em")
             .attr("fill", colors.titleFill)
             .text(routeName.toUpperCase());
 
