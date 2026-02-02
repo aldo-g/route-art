@@ -566,14 +566,29 @@ export default function EditPanel({
                                 </div>
                             </div>
                             <div>
-                                <div className="flex items-center justify-between mb-1">
-                                    <label className="block text-xs font-medium text-neutral-600">Date</label>
+                                <label className="block text-xs font-medium text-neutral-600 mb-1">Date</label>
+                                <div className="flex gap-1 mb-2">
                                     <button
                                         type="button"
-                                        onClick={() => setIsDateRange(!isDateRange)}
-                                        className="text-[10px] text-neutral-500 hover:text-neutral-700"
+                                        onClick={() => setIsDateRange(false)}
+                                        className={`flex-1 py-1 text-[10px] rounded border transition-colors ${
+                                            !isDateRange
+                                                ? 'bg-neutral-900 text-white border-neutral-900'
+                                                : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                        }`}
                                     >
-                                        {isDateRange ? 'Single date' : 'Date range'}
+                                        Single date
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsDateRange(true)}
+                                        className={`flex-1 py-1 text-[10px] rounded border transition-colors ${
+                                            isDateRange
+                                                ? 'bg-neutral-900 text-white border-neutral-900'
+                                                : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                        }`}
+                                    >
+                                        Date range
                                     </button>
                                 </div>
                                 <div className="flex gap-2">
@@ -752,6 +767,15 @@ export default function EditPanel({
                         </p>
                     </div>
                 </CollapsibleSection>
+            </div>
+
+            {/* Purchase Button */}
+            <div className="p-3 border-t border-neutral-200">
+                <button
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                    Purchase Print
+                </button>
             </div>
         </div>
     );
