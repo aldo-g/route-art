@@ -21,7 +21,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-neutral-100 text-neutral-900 flex flex-col font-sans">
       <header className="p-6 border-b border-neutral-200 bg-white flex justify-between items-center">
-        <h1 className="text-xl font-bold tracking-tight">Route Art</h1>
+        <h1 className="text-xl font-bold tracking-tight">Contour Maps</h1>
       </header>
 
       <div className="flex-1 p-6 flex flex-col">

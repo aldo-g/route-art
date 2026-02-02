@@ -33,12 +33,16 @@ interface ArtCanvasProps {
     geoJson: any; // Raw GeoJSON from parser
     fileName?: string;
     selectedLandmarkIds?: Set<number>;
+    customLandmarks?: Landmark[];
     statsOverrides?: StatsOverrides;
     imageOverride?: ImageOverride;
+    isPlacingLandmark?: boolean;
     onLandmarksLoaded?: (landmarks: Landmark[]) => void;
     onVisibleLandmarksCalculated?: (visibleIds: number[]) => void;
+    onInBoundsLandmarksCalculated?: (inBoundsIds: number[]) => void;
     onDefaultsCalculated?: (defaults: RouteDefaults) => void;
     onCountryCodeDetected?: (countryCode: string | null) => void;
+    onMapClick?: (lat: number, lng: number) => void;
 }
 
 export interface ArtCanvasHandle {
@@ -46,9 +50,10 @@ export interface ArtCanvasHandle {
     exportPDF: (fileName: string) => void;
 }
 
-const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, statsOverrides, imageOverride, onLandmarksLoaded, onVisibleLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected }, ref) => {
+const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick }, ref) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const projectionRef = useRef<d3.GeoProjection | null>(null);
     const [processed, setProcessed] = useState<ProcessedRoute | null>(null);
     const [elevationData, setElevationData] = useState<number[] | null>(null);
     const [isLoadingElevation, setIsLoadingElevation] = useState(false);
@@ -76,10 +81,11 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         return () => resizeObserver.disconnect();
     }, []);
 
-    // Filter landmarks based on selection (if in edit mode with selections)
+    // Combine API landmarks with custom landmarks, then filter based on selection
+    const combinedLandmarks = [...allLandmarks, ...(customLandmarks || [])];
     const landmarks = selectedLandmarkIds
-        ? allLandmarks.filter(l => selectedLandmarkIds.has(l.id))
-        : allLandmarks;
+        ? combinedLandmarks.filter(l => selectedLandmarkIds.has(l.id))
+        : combinedLandmarks;
 
     useEffect(() => {
         if (geoJson) {
@@ -312,6 +318,9 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const projection = d3.geoMercator()
             .fitExtent([[padding, padding], [width - padding, height - padding - titleAreaHeight]], processed.feature);
 
+        // Store projection for click handling
+        projectionRef.current = projection;
+
         // Create clipping path for contours - stops before title area (title sits in clean white space)
         const clipId = `poster-clip-${Date.now()}`;
         svg.append("defs")
@@ -324,6 +333,18 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("height", height - posterPadding * 2 - titleAreaHeight)
             .attr("rx", 2)
             .attr("ry", 2);
+
+        // Draw visible border around contour map area
+        svg.append("rect")
+            .attr("x", posterPadding)
+            .attr("y", posterPadding)
+            .attr("width", width - posterPadding * 2)
+            .attr("height", height - posterPadding * 2 - titleAreaHeight)
+            .attr("rx", 2)
+            .attr("ry", 2)
+            .attr("fill", "none")
+            .attr("stroke", "#e5e5e5")
+            .attr("stroke-width", 1);
 
         const pathGenerator = d3.geoPath().projection(projection);
 
@@ -393,7 +414,9 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
         // 4. Render Landmarks (spacing only applies for initial auto-selection)
         if (landmarks.length > 0) {
-            const landmarkGroup = svg.append("g").attr("class", "landmarks");
+            const landmarkGroup = svg.append("g")
+                .attr("class", "landmarks")
+                .attr("clip-path", `url(#${clipId})`);
 
             // Get projected route coordinates for determining label side
             const routeCoords = processed.feature.geometry.coordinates.map(
@@ -448,11 +471,30 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 return false;
             };
 
+            // Define clip bounds for filtering landmarks
+            const clipBounds = {
+                minX: posterPadding,
+                minY: posterPadding,
+                maxX: width - posterPadding,
+                maxY: height - posterPadding - titleAreaHeight
+            };
+
+            // Track all landmarks that are within map bounds (for edit panel)
+            const inBoundsLandmarkIds: number[] = [];
+
             landmarks.forEach(landmark => {
                 const coords = projection([landmark.lng, landmark.lat]);
                 if (!coords) return;
 
                 const [x, y] = coords;
+
+                // Skip if outside the clipped map area
+                if (x < clipBounds.minX || x > clipBounds.maxX || y < clipBounds.minY || y > clipBounds.maxY) {
+                    return;
+                }
+
+                // Track that this landmark is in bounds
+                inBoundsLandmarkIds.push(landmark.id);
 
                 // Skip if no name
                 if (!landmark.name) return;
@@ -528,6 +570,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
             // Report which landmarks are actually visible (for initial selection)
             onVisibleLandmarksCalculated?.(visibleLandmarkIds);
+            // Report which landmarks are in bounds (for edit panel filtering)
+            onInBoundsLandmarksCalculated?.(inBoundsLandmarkIds);
         }
 
         // 5. Render Stat Bar (in the reserved bottom area)
@@ -559,7 +603,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const distanceText = `${displayDistance} km`;
         const ascentText = displayElevationGain ? `↑${displayElevationGain}m` : '';
         const descentText = displayElevationLoss ? `↓${displayElevationLoss}m` : '';
-        const statsText = [distanceText, ascentText, descentText].filter(Boolean).join('   ');
+        const statsText = [distanceText, ascentText, descentText].filter(Boolean).join('  ·  ');
 
         // Determine image URL (custom override, default flag, or none)
         const imageEnabled = imageOverride?.enabled !== false;
@@ -581,8 +625,9 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("font-family", "system-ui, sans-serif")
             .attr("font-size", `${titleFontSize}px`)
             .attr("font-weight", "600")
+            .attr("letter-spacing", "0.1em")
             .attr("fill", "#171717")
-            .text(routeName);
+            .text(routeName.toUpperCase());
 
         // Stats text (right side, before flag if present)
         const flagHeight = imageUrl ? titleAreaHeight * 0.6 : 0;
@@ -613,7 +658,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 .attr("preserveAspectRatio", "xMidYMid meet");
         }
 
-    }, [processed, geoJson, elevationData, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize]);
+    }, [processed, geoJson, elevationData, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize]);
 
     return (
         <div ref={containerRef} className="w-full h-full bg-white relative">
@@ -631,7 +676,34 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                     </div>
                 </div>
             )}
-            <svg ref={svgRef} className="w-full h-full" />
+            <svg
+                ref={svgRef}
+                className={`w-full h-full ${isPlacingLandmark ? 'cursor-crosshair' : ''}`}
+                onClick={(e) => {
+                    if (!isPlacingLandmark || !onMapClick || !projectionRef.current) return;
+
+                    const svg = svgRef.current;
+                    if (!svg) return;
+
+                    const rect = svg.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+
+                    // Convert screen coordinates to geo coordinates
+                    const invert = projectionRef.current.invert;
+                    if (!invert) return;
+
+                    const coords = invert([x, y]);
+                    if (coords) {
+                        onMapClick(coords[1], coords[0]); // lat, lng
+                    }
+                }}
+            />
+            {isPlacingLandmark && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-neutral-900 text-white text-xs px-3 py-2 rounded-full shadow-lg z-10">
+                    Click on the map to place your landmark
+                </div>
+            )}
         </div>
     );
 });

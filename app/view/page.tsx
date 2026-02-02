@@ -17,8 +17,10 @@ export default function ViewPage() {
 
     // Landmark editing state
     const [allLandmarks, setAllLandmarks] = useState<Landmark[]>([]);
+    const [customLandmarks, setCustomLandmarks] = useState<Landmark[]>([]);
     const [selectedLandmarkIds, setSelectedLandmarkIds] = useState<Set<number> | null>(null);
     const [hasInitialSelection, setHasInitialSelection] = useState(false);
+    const [inBoundsLandmarkIds, setInBoundsLandmarkIds] = useState<Set<number> | null>(null);
 
     // Stats editing state
     const [statsOverrides, setStatsOverrides] = useState<StatsOverrides>({});
@@ -34,6 +36,10 @@ export default function ViewPage() {
 
     // Poster orientation state
     const [isPortrait, setIsPortrait] = useState(false);
+
+    // Click-to-place landmark state
+    const [isPlacingLandmark, setIsPlacingLandmark] = useState(false);
+    const [pendingLandmark, setPendingLandmark] = useState<{ name: string; iconType: Landmark['type']; elevation?: string } | null>(null);
 
     useEffect(() => {
         // Retrieve data from sessionStorage
@@ -64,6 +70,12 @@ export default function ViewPage() {
                     setImageOverride(JSON.parse(storedImageOverride));
                 }
 
+                // Restore custom landmarks if saved
+                const storedCustomLandmarks = sessionStorage.getItem('routeArtCustomLandmarks');
+                if (storedCustomLandmarks) {
+                    setCustomLandmarks(JSON.parse(storedCustomLandmarks));
+                }
+
             } catch {
                 console.error('Failed to parse stored route data');
                 router.push('/');
@@ -78,15 +90,112 @@ export default function ViewPage() {
         setAllLandmarks(landmarks);
     }, []);
 
+    // Combine API landmarks with custom landmarks, filtered to only those in bounds
+    const combinedLandmarks = [...allLandmarks, ...customLandmarks].filter(
+        l => !inBoundsLandmarkIds || inBoundsLandmarkIds.has(l.id)
+    );
+
+    const handleAddCustomLandmark = useCallback((landmark: Omit<Landmark, 'id'>) => {
+        const newLandmark: Landmark = {
+            ...landmark,
+            id: Date.now(), // Use timestamp as unique ID
+            isCustom: true
+        };
+        setCustomLandmarks(prev => {
+            const updated = [...prev, newLandmark];
+            try {
+                sessionStorage.setItem('routeArtCustomLandmarks', JSON.stringify(updated));
+            } catch {
+                console.warn('Failed to save custom landmarks to sessionStorage (quota exceeded)');
+            }
+            return updated;
+        });
+        // Auto-select the new landmark
+        setSelectedLandmarkIds(prev => {
+            const newSet = new Set(prev);
+            newSet.add(newLandmark.id);
+            try {
+                sessionStorage.setItem('routeArtSelectedLandmarks', JSON.stringify([...newSet]));
+            } catch {
+                console.warn('Failed to save selected landmarks to sessionStorage (quota exceeded)');
+            }
+            return newSet;
+        });
+    }, []);
+
+    const handleDeleteCustomLandmark = (id: number) => {
+        setCustomLandmarks(prev => {
+            const updated = prev.filter(l => l.id !== id);
+            try {
+                sessionStorage.setItem('routeArtCustomLandmarks', JSON.stringify(updated));
+            } catch {
+                console.warn('Failed to save custom landmarks to sessionStorage');
+            }
+            return updated;
+        });
+        // Also remove from selection
+        setSelectedLandmarkIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(id);
+            try {
+                sessionStorage.setItem('routeArtSelectedLandmarks', JSON.stringify([...newSet]));
+            } catch {
+                console.warn('Failed to save selected landmarks to sessionStorage');
+            }
+            return newSet;
+        });
+    };
+
+    // Start placing a landmark - called from EditPanel
+    const handleStartPlacingLandmark = (name: string, iconType: Landmark['type'], elevation?: string) => {
+        setPendingLandmark({ name, iconType, elevation });
+        setIsPlacingLandmark(true);
+    };
+
+    // Cancel placing a landmark
+    const handleCancelPlacingLandmark = () => {
+        setPendingLandmark(null);
+        setIsPlacingLandmark(false);
+    };
+
+    // Called when user clicks on the canvas to place the landmark
+    const handleMapClick = useCallback((lat: number, lng: number) => {
+        if (!pendingLandmark) return;
+
+        const elevation = pendingLandmark.elevation ? parseFloat(pendingLandmark.elevation) : undefined;
+
+        handleAddCustomLandmark({
+            type: pendingLandmark.iconType,
+            name: pendingLandmark.name,
+            lat,
+            lng,
+            elevation: isNaN(elevation as number) ? undefined : elevation,
+            isCustom: true
+        });
+
+        // Reset placing state
+        setPendingLandmark(null);
+        setIsPlacingLandmark(false);
+    }, [pendingLandmark, handleAddCustomLandmark]);
+
     // Set initial selection based on which landmarks are actually visible (pass spacing filter)
     const handleVisibleLandmarksCalculated = useCallback((visibleIds: number[]) => {
         if (!hasInitialSelection) {
             setSelectedLandmarkIds(new Set(visibleIds));
             setHasInitialSelection(true);
             // Save to sessionStorage
-            sessionStorage.setItem('routeArtSelectedLandmarks', JSON.stringify(visibleIds));
+            try {
+                sessionStorage.setItem('routeArtSelectedLandmarks', JSON.stringify(visibleIds));
+            } catch {
+                console.warn('Failed to save selected landmarks to sessionStorage (quota exceeded)');
+            }
         }
     }, [hasInitialSelection]);
+
+    // Track which landmarks are within the visible map bounds (for edit panel filtering)
+    const handleInBoundsLandmarksCalculated = useCallback((inBoundsIds: number[]) => {
+        setInBoundsLandmarkIds(new Set(inBoundsIds));
+    }, []);
 
     const handleToggleLandmark = (id: number) => {
         setSelectedLandmarkIds(prev => {
@@ -97,20 +206,32 @@ export default function ViewPage() {
                 newSet.add(id);
             }
             // Save to sessionStorage
-            sessionStorage.setItem('routeArtSelectedLandmarks', JSON.stringify([...newSet]));
+            try {
+                sessionStorage.setItem('routeArtSelectedLandmarks', JSON.stringify([...newSet]));
+            } catch {
+                console.warn('Failed to save selected landmarks to sessionStorage (quota exceeded)');
+            }
             return newSet;
         });
     };
 
     const handleSelectAll = () => {
-        const allIds = new Set(allLandmarks.map(l => l.id));
+        const allIds = new Set(combinedLandmarks.map(l => l.id));
         setSelectedLandmarkIds(allIds);
-        sessionStorage.setItem('routeArtSelectedLandmarks', JSON.stringify([...allIds]));
+        try {
+            sessionStorage.setItem('routeArtSelectedLandmarks', JSON.stringify([...allIds]));
+        } catch {
+            console.warn('Failed to save selected landmarks to sessionStorage (quota exceeded)');
+        }
     };
 
     const handleDeselectAll = () => {
         setSelectedLandmarkIds(new Set());
-        sessionStorage.setItem('routeArtSelectedLandmarks', JSON.stringify([]));
+        try {
+            sessionStorage.setItem('routeArtSelectedLandmarks', JSON.stringify([]));
+        } catch {
+            console.warn('Failed to save selected landmarks to sessionStorage (quota exceeded)');
+        }
     };
 
     const handleDefaultsCalculated = useCallback((defaults: RouteDefaults) => {
@@ -155,7 +276,7 @@ export default function ViewPage() {
         sessionStorage.removeItem('routeArtSelectedLandmarks');
         sessionStorage.removeItem('routeArtStatsOverrides');
         sessionStorage.removeItem('routeArtImageOverride');
-        sessionStorage.removeItem('routeArtStatsBoxPosition');
+        sessionStorage.removeItem('routeArtCustomLandmarks');
         router.push('/');
     };
 
@@ -179,7 +300,7 @@ export default function ViewPage() {
                         New Route
                     </button>
                     <div className="h-4 w-px bg-neutral-200" />
-                    <h1 className="text-xl font-bold tracking-tight">Route Art</h1>
+                    <h1 className="text-xl font-bold tracking-tight">Contour Maps</h1>
                 </div>
                 <div className="flex gap-2">
                     <button
@@ -237,22 +358,31 @@ export default function ViewPage() {
                             geoJson={geoJson}
                             fileName={fileName}
                             selectedLandmarkIds={selectedLandmarkIds ?? undefined}
+                            customLandmarks={customLandmarks}
                             statsOverrides={statsOverrides}
                             imageOverride={imageOverride}
+                            isPlacingLandmark={isPlacingLandmark}
                             onLandmarksLoaded={handleLandmarksLoaded}
                             onVisibleLandmarksCalculated={handleVisibleLandmarksCalculated}
+                            onInBoundsLandmarksCalculated={handleInBoundsLandmarksCalculated}
                             onDefaultsCalculated={handleDefaultsCalculated}
                             onCountryCodeDetected={handleCountryCodeDetected}
+                            onMapClick={handleMapClick}
                         />
                     </div>
                 </div>
                 {editTab && (
                     <EditPanel
-                        landmarks={allLandmarks}
+                        landmarks={combinedLandmarks}
                         selectedLandmarkIds={selectedLandmarkIds ?? new Set()}
                         onToggleLandmark={handleToggleLandmark}
                         onSelectAllLandmarks={handleSelectAll}
                         onDeselectAllLandmarks={handleDeselectAll}
+                        onDeleteCustomLandmark={handleDeleteCustomLandmark}
+                        onAddCustomLandmark={handleAddCustomLandmark}
+                        isPlacingLandmark={isPlacingLandmark}
+                        onStartPlacingLandmark={handleStartPlacingLandmark}
+                        onCancelPlacingLandmark={handleCancelPlacingLandmark}
                         statsDefaults={routeDefaults}
                         statsOverrides={statsOverrides}
                         onSaveStats={handleStatsOverridesSave}

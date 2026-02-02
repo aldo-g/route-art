@@ -4,12 +4,13 @@ import { Feature, LineString } from 'geojson';
 
 export interface Landmark {
     id: number;
-    type: 'peak' | 'saddle' | 'volcano' | 'cliff' | 'ridge' | 'valley' | 'waterfall' | 'spring' | 'cave';
+    type: 'peak' | 'saddle' | 'volcano' | 'cliff' | 'ridge' | 'valley' | 'waterfall' | 'spring' | 'cave' | 'custom';
     name: string | null;
     lat: number;
     lng: number;
     elevation?: number;
     distanceToRoute?: number;
+    isCustom?: boolean;
 }
 
 export const fetchLandmarks = async (

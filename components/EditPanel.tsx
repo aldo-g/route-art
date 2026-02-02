@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { X, Mountain, Droplets, Triangle, MapPin, Upload, Trash2 } from 'lucide-react';
+import { X, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star } from 'lucide-react';
 import { Landmark } from '@/lib/landmarks';
 
 export interface StatsOverrides {
@@ -33,6 +33,12 @@ interface EditPanelProps {
     onToggleLandmark: (id: number) => void;
     onSelectAllLandmarks: () => void;
     onDeselectAllLandmarks: () => void;
+    onDeleteCustomLandmark: (id: number) => void;
+    onAddCustomLandmark: (landmark: Omit<Landmark, 'id'>) => void;
+    // Click-to-place props
+    isPlacingLandmark: boolean;
+    onStartPlacingLandmark: (name: string, iconType: Landmark['type'], elevation?: string) => void;
+    onCancelPlacingLandmark: () => void;
     // Stats props
     statsDefaults: RouteDefaults | null;
     statsOverrides: StatsOverrides;
@@ -53,6 +59,8 @@ const getLandmarkIcon = (type: Landmark['type']) => {
             return <Triangle className="w-3 h-3" />;
         case 'waterfall':
             return <Droplets className="w-3 h-3" />;
+        case 'custom':
+            return <Star className="w-3 h-3" />;
         default:
             return <Mountain className="w-3 h-3" />;
     }
@@ -64,6 +72,11 @@ export default function EditPanel({
     onToggleLandmark,
     onSelectAllLandmarks,
     onDeselectAllLandmarks,
+    onDeleteCustomLandmark,
+    onAddCustomLandmark,
+    isPlacingLandmark,
+    onStartPlacingLandmark,
+    onCancelPlacingLandmark,
     statsDefaults,
     statsOverrides,
     onSaveStats,
@@ -74,6 +87,26 @@ export default function EditPanel({
     onClose
 }: EditPanelProps) {
     const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+
+    // Custom landmark form state
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [newLandmarkName, setNewLandmarkName] = useState('');
+    const [newLandmarkElevation, setNewLandmarkElevation] = useState('');
+    const [newLandmarkIcon, setNewLandmarkIcon] = useState<Landmark['type']>('custom');
+    const [newLandmarkLat, setNewLandmarkLat] = useState('');
+    const [newLandmarkLng, setNewLandmarkLng] = useState('');
+    const [useManualCoords, setUseManualCoords] = useState(false);
+
+    const iconOptions: { value: Landmark['type']; label: string }[] = [
+        { value: 'custom', label: 'Star' },
+        { value: 'peak', label: 'Peak' },
+        { value: 'waterfall', label: 'Waterfall' },
+        { value: 'saddle', label: 'Saddle' },
+        { value: 'cliff', label: 'Cliff' },
+        { value: 'valley', label: 'Valley' },
+        { value: 'spring', label: 'Spring' },
+        { value: 'cave', label: 'Cave' },
+    ];
 
     // Stats editing state
     const [routeName, setRouteName] = useState(statsOverrides.routeName ?? statsDefaults?.routeName ?? '');
@@ -146,6 +179,56 @@ export default function EditPanel({
         });
     };
 
+    const handleStartPlacing = () => {
+        if (!newLandmarkName.trim()) return;
+        onStartPlacingLandmark(newLandmarkName.trim(), newLandmarkIcon, newLandmarkElevation || undefined);
+        // Reset form after starting placement
+        setNewLandmarkName('');
+        setNewLandmarkElevation('');
+        setNewLandmarkIcon('custom');
+        setShowAddForm(false);
+    };
+
+    const handleCancelForm = () => {
+        setShowAddForm(false);
+        setNewLandmarkName('');
+        setNewLandmarkElevation('');
+        setNewLandmarkIcon('custom');
+        setNewLandmarkLat('');
+        setNewLandmarkLng('');
+        setUseManualCoords(false);
+        if (isPlacingLandmark) {
+            onCancelPlacingLandmark();
+        }
+    };
+
+    const handleAddWithCoords = () => {
+        if (!newLandmarkName.trim()) return;
+        const lat = parseFloat(newLandmarkLat);
+        const lng = parseFloat(newLandmarkLng);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const elevation = newLandmarkElevation ? parseFloat(newLandmarkElevation) : undefined;
+
+        onAddCustomLandmark({
+            type: newLandmarkIcon,
+            name: newLandmarkName.trim(),
+            lat,
+            lng,
+            elevation: isNaN(elevation as number) ? undefined : elevation,
+            isCustom: true
+        });
+
+        // Reset form
+        setNewLandmarkName('');
+        setNewLandmarkElevation('');
+        setNewLandmarkIcon('custom');
+        setNewLandmarkLat('');
+        setNewLandmarkLng('');
+        setUseManualCoords(false);
+        setShowAddForm(false);
+    };
+
     const selectedCount = selectedLandmarkIds.size;
     const totalCount = landmarks.length;
 
@@ -210,6 +293,153 @@ export default function EditPanel({
                                 Deselect All
                             </button>
                         </div>
+
+                        {/* Add Custom Landmark */}
+                        <div className="p-2 border-b border-neutral-100">
+                            {isPlacingLandmark ? (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-medium text-neutral-600">Placing landmark...</span>
+                                        <button
+                                            onClick={onCancelPlacingLandmark}
+                                            className="p-1 hover:bg-neutral-100 rounded"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-neutral-500 text-center py-2">
+                                        Click on the map to place your landmark
+                                    </p>
+                                    <button
+                                        onClick={onCancelPlacingLandmark}
+                                        className="w-full py-1.5 text-xs border border-neutral-200 text-neutral-600 rounded hover:bg-neutral-50 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            ) : !showAddForm ? (
+                                <button
+                                    onClick={() => setShowAddForm(true)}
+                                    className="w-full flex items-center justify-center gap-2 py-2 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded transition-colors"
+                                >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    Add Custom Landmark
+                                </button>
+                            ) : (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-medium text-neutral-600">New Landmark</span>
+                                        <button
+                                            onClick={handleCancelForm}
+                                            className="p-1 hover:bg-neutral-100 rounded"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Name (required)"
+                                        value={newLandmarkName}
+                                        onChange={(e) => setNewLandmarkName(e.target.value)}
+                                        className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                                    />
+                                    <div className="flex gap-1 flex-wrap">
+                                        {iconOptions.map(option => (
+                                            <button
+                                                key={option.value}
+                                                type="button"
+                                                onClick={() => setNewLandmarkIcon(option.value)}
+                                                className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded border transition-colors ${
+                                                    newLandmarkIcon === option.value
+                                                        ? 'bg-neutral-900 text-white border-neutral-900'
+                                                        : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                }`}
+                                            >
+                                                {getLandmarkIcon(option.value)}
+                                                {option.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Elevation in meters (optional)"
+                                        value={newLandmarkElevation}
+                                        onChange={(e) => setNewLandmarkElevation(e.target.value)}
+                                        className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                                    />
+
+                                    {/* Toggle between click-to-place and manual coords */}
+                                    <div className="flex gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setUseManualCoords(false)}
+                                            className={`flex-1 py-1.5 text-[10px] rounded border transition-colors ${
+                                                !useManualCoords
+                                                    ? 'bg-neutral-900 text-white border-neutral-900'
+                                                    : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                            }`}
+                                        >
+                                            Click on map
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setUseManualCoords(true)}
+                                            className={`flex-1 py-1.5 text-[10px] rounded border transition-colors ${
+                                                useManualCoords
+                                                    ? 'bg-neutral-900 text-white border-neutral-900'
+                                                    : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                            }`}
+                                        >
+                                            Enter coordinates
+                                        </button>
+                                    </div>
+
+                                    {useManualCoords ? (
+                                        <>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Latitude"
+                                                    value={newLandmarkLat}
+                                                    onChange={(e) => setNewLandmarkLat(e.target.value)}
+                                                    className="flex-1 px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Longitude"
+                                                    value={newLandmarkLng}
+                                                    onChange={(e) => setNewLandmarkLng(e.target.value)}
+                                                    className="flex-1 px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={handleAddWithCoords}
+                                                disabled={!newLandmarkName.trim() || !newLandmarkLat || !newLandmarkLng}
+                                                className="w-full py-1.5 text-xs bg-neutral-900 text-white rounded hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <Plus className="w-3 h-3" />
+                                                Add Landmark
+                                            </button>
+                                            {!newLandmarkName.trim() && newLandmarkLat && newLandmarkLng && (
+                                                <p className="text-[10px] text-amber-600 text-center">
+                                                    Please enter a name above
+                                                </p>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <button
+                                            onClick={handleStartPlacing}
+                                            disabled={!newLandmarkName.trim()}
+                                            className="w-full py-1.5 text-xs bg-neutral-900 text-white rounded hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                                        >
+                                            <MapPin className="w-3 h-3" />
+                                            Click on map to place
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
                         <div className="flex-1 overflow-y-auto p-2">
                             <p className="text-xs text-neutral-400 mb-2 px-2">
                                 {selectedCount} of {totalCount} selected
@@ -221,9 +451,9 @@ export default function EditPanel({
                             ) : (
                                 <div className="space-y-1">
                                     {landmarks.map(landmark => (
-                                        <label
+                                        <div
                                             key={landmark.id}
-                                            className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${
+                                            className={`flex items-center gap-3 p-2 rounded transition-colors ${
                                                 selectedLandmarkIds.has(landmark.id)
                                                     ? 'bg-neutral-100'
                                                     : 'hover:bg-neutral-50'
@@ -233,7 +463,7 @@ export default function EditPanel({
                                                 type="checkbox"
                                                 checked={selectedLandmarkIds.has(landmark.id)}
                                                 onChange={() => onToggleLandmark(landmark.id)}
-                                                className="w-4 h-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
+                                                className="w-4 h-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500 cursor-pointer"
                                             />
                                             <span className="text-neutral-400">
                                                 {getLandmarkIcon(landmark.type)}
@@ -241,6 +471,11 @@ export default function EditPanel({
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-medium truncate">
                                                     {landmark.name}
+                                                    {landmark.isCustom && (
+                                                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 bg-neutral-200 text-neutral-500 rounded">
+                                                            custom
+                                                        </span>
+                                                    )}
                                                 </p>
                                                 <p className="text-xs text-neutral-400">
                                                     {landmark.elevation ? `${Math.round(landmark.elevation)}m` : ''}
@@ -248,7 +483,16 @@ export default function EditPanel({
                                                     {landmark.distanceToRoute ? `${landmark.distanceToRoute.toFixed(1)}km from route` : ''}
                                                 </p>
                                             </div>
-                                        </label>
+                                            {landmark.isCustom && (
+                                                <button
+                                                    onClick={() => onDeleteCustomLandmark(landmark.id)}
+                                                    className="p-1 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                    title="Delete custom landmark"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
                                     ))}
                                 </div>
                             )}
