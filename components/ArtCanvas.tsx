@@ -15,6 +15,8 @@ export interface StatsOverrides {
     distance?: string;
     elevationGain?: string;
     elevationLoss?: string;
+    dateStart?: string;
+    dateEnd?: string;
 }
 
 export interface RouteDefaults {
@@ -37,6 +39,7 @@ interface ArtCanvasProps {
     statsOverrides?: StatsOverrides;
     imageOverride?: ImageOverride;
     isPlacingLandmark?: boolean;
+    isDarkMode?: boolean;
     onLandmarksLoaded?: (landmarks: Landmark[]) => void;
     onVisibleLandmarksCalculated?: (visibleIds: number[]) => void;
     onInBoundsLandmarksCalculated?: (inBoundsIds: number[]) => void;
@@ -50,7 +53,7 @@ export interface ArtCanvasHandle {
     exportPDF: (fileName: string) => void;
 }
 
-const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick }, ref) => {
+const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick }, ref) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const projectionRef = useRef<d3.GeoProjection | null>(null);
@@ -187,8 +190,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const fetchLandmarkData = async () => {
             try {
                 const result = await fetchLandmarks(viewBbox, processed.feature, {
-                    maxDistance: 5, // 5km from route
-                    limit: 30
+                    maxDistance: 15, // 15km from route for better coverage on larger maps
+                    limit: 50
                 });
                 setAllLandmarks(result);
                 onLandmarksLoaded?.(result);
@@ -307,8 +310,41 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const svg = d3.select(svgRef.current);
         const { width, height } = containerSize;
 
+        // Color scheme based on dark mode
+        const colors = isDarkMode ? {
+            background: '#0a0a0a',
+            contourStroke: '#2a2a2a',
+            borderStroke: '#2a2a2a',
+            routeStroke: '#f5f5f5',
+            routeOutline: '#0a0a0a',
+            markerFill: '#f5f5f5',
+            markerStroke: '#0a0a0a',
+            labelFill: '#f5f5f5',
+            labelStroke: '#0a0a0a',
+            titleFill: '#f5f5f5',
+            statsFill: '#a3a3a3',
+        } : {
+            background: '#ffffff',
+            contourStroke: '#e5e5e5',
+            borderStroke: '#e5e5e5',
+            routeStroke: '#171717',
+            routeOutline: 'white',
+            markerFill: '#171717',
+            markerStroke: 'white',
+            labelFill: '#171717',
+            labelStroke: 'white',
+            titleFill: '#171717',
+            statsFill: '#525252',
+        };
+
         // Clear previous
         svg.selectAll("*").remove();
+
+        // Add background rect for dark mode
+        svg.append("rect")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("fill", colors.background);
 
         // 1. Setup Projection
         // Poster padding for framing - creates a clean border around the artwork
@@ -343,7 +379,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("rx", 2)
             .attr("ry", 2)
             .attr("fill", "none")
-            .attr("stroke", "#e5e5e5")
+            .attr("stroke", colors.borderStroke)
             .attr("stroke-width", 1);
 
         const pathGenerator = d3.geoPath().projection(projection);
@@ -387,7 +423,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 }
             })))
             .attr("fill", "none")
-            .attr("stroke", "#e5e5e5")
+            .attr("stroke", colors.contourStroke)
             .attr("stroke-width", 1);
 
 
@@ -398,7 +434,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .datum(processed.feature)
             .attr("d", pathGenerator)
             .attr("fill", "none")
-            .attr("stroke", "white")
+            .attr("stroke", colors.routeOutline)
             .attr("stroke-width", 6)
             .attr("stroke-linecap", "round")
             .attr("stroke-linejoin", "round");
@@ -407,7 +443,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .datum(processed.feature)
             .attr("d", pathGenerator)
             .attr("fill", "none")
-            .attr("stroke", "#171717")
+            .attr("stroke", colors.routeStroke)
             .attr("stroke-width", 2)
             .attr("stroke-linecap", "round")
             .attr("stroke-linejoin", "round");
@@ -528,8 +564,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                     const size = 5;
                     landmarkGroup.append("path")
                         .attr("d", `M${x},${y - size} L${x - size * 0.7},${y + size * 0.5} L${x + size * 0.7},${y + size * 0.5} Z`)
-                        .attr("fill", "#171717")
-                        .attr("stroke", "white")
+                        .attr("fill", colors.markerFill)
+                        .attr("stroke", colors.markerStroke)
                         .attr("stroke-width", 1.5);
                 } else {
                     // Circle marker for other landmarks
@@ -537,12 +573,12 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                         .attr("cx", x)
                         .attr("cy", y)
                         .attr("r", 2.5)
-                        .attr("fill", "#171717")
-                        .attr("stroke", "white")
+                        .attr("fill", colors.markerFill)
+                        .attr("stroke", colors.markerStroke)
                         .attr("stroke-width", 1.5);
                 }
 
-                // White background for readability
+                // Background for readability
                 landmarkGroup.append("text")
                     .attr("x", labelOnLeft ? x - 8 : x + 8)
                     .attr("y", labelY)
@@ -550,8 +586,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                     .attr("font-family", "system-ui, sans-serif")
                     .attr("font-size", "9px")
                     .attr("font-weight", "500")
-                    .attr("fill", "white")
-                    .attr("stroke", "white")
+                    .attr("fill", colors.labelStroke)
+                    .attr("stroke", colors.labelStroke)
                     .attr("stroke-width", 3)
                     .attr("paint-order", "stroke")
                     .text(label);
@@ -564,7 +600,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                     .attr("font-family", "system-ui, sans-serif")
                     .attr("font-size", "9px")
                     .attr("font-weight", "500")
-                    .attr("fill", "#171717")
+                    .attr("fill", colors.labelFill)
                     .text(label);
             });
 
@@ -599,11 +635,27 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const displayElevationGain = statsOverrides?.elevationGain ?? (defaultElevationGain > 0 ? Math.round(defaultElevationGain).toString() : '');
         const displayElevationLoss = statsOverrides?.elevationLoss ?? (defaultElevationLoss > 0 ? Math.round(defaultElevationLoss).toString() : '');
 
+        // Format date for display
+        const formatDate = (dateStr: string) => {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        };
+
+        let dateText = '';
+        if (statsOverrides?.dateStart) {
+            if (statsOverrides?.dateEnd) {
+                dateText = `${formatDate(statsOverrides.dateStart)} – ${formatDate(statsOverrides.dateEnd)}`;
+            } else {
+                dateText = formatDate(statsOverrides.dateStart);
+            }
+        }
+
         // Format stats as a single line
         const distanceText = `${displayDistance} km`;
         const ascentText = displayElevationGain ? `↑${displayElevationGain}m` : '';
         const descentText = displayElevationLoss ? `↓${displayElevationLoss}m` : '';
-        const statsText = [distanceText, ascentText, descentText].filter(Boolean).join('  ·  ');
+        const statsText = [dateText, distanceText, ascentText, descentText].filter(Boolean).join('  ·  ');
 
         // Determine image URL (custom override, default flag, or none)
         const imageEnabled = imageOverride?.enabled !== false;
@@ -626,7 +678,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("font-size", `${titleFontSize}px`)
             .attr("font-weight", "600")
             .attr("letter-spacing", "0.1em")
-            .attr("fill", "#171717")
+            .attr("fill", colors.titleFill)
             .text(routeName.toUpperCase());
 
         // Stats text (right side, before flag if present)
@@ -641,7 +693,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("text-anchor", "end")
             .attr("font-family", "system-ui, sans-serif")
             .attr("font-size", `${detailFontSize}px`)
-            .attr("fill", "#525252")
+            .attr("fill", colors.statsFill)
             .text(statsText);
 
         // Flag/image (far right)
@@ -658,10 +710,10 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 .attr("preserveAspectRatio", "xMidYMid meet");
         }
 
-    }, [processed, geoJson, elevationData, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize]);
+    }, [processed, geoJson, elevationData, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize, isDarkMode]);
 
     return (
-        <div ref={containerRef} className="w-full h-full bg-white relative">
+        <div ref={containerRef} className={`w-full h-full relative ${isDarkMode ? 'bg-[#0a0a0a]' : 'bg-white'}`}>
             {isLoadingElevation && (
                 <div className="absolute top-4 right-4 flex items-center gap-2 text-xs text-neutral-400 bg-white/80 backdrop-blur-sm px-2 py-1 rounded border border-neutral-100 z-10">
                     <Loader2 className="w-3 h-3 animate-spin" />

@@ -10,6 +10,8 @@ export interface StatsOverrides {
     distance?: string;
     elevationGain?: string;
     elevationLoss?: string;
+    dateStart?: string;
+    dateEnd?: string;
 }
 
 export interface RouteDefaults {
@@ -117,6 +119,9 @@ export default function EditPanel({
     const [elevationLoss, setElevationLoss] = useState(
         statsOverrides.elevationLoss ?? (statsDefaults ? Math.round(statsDefaults.elevationLoss).toString() : '')
     );
+    const [dateStart, setDateStart] = useState(statsOverrides.dateStart ?? '');
+    const [dateEnd, setDateEnd] = useState(statsOverrides.dateEnd ?? '');
+    const [isDateRange, setIsDateRange] = useState(!!statsOverrides.dateEnd);
 
     // Image editing state - changes save immediately
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -128,6 +133,8 @@ export default function EditPanel({
             distance: distance !== statsDefaults.distance.toFixed(1) ? distance : undefined,
             elevationGain: elevationGain !== Math.round(statsDefaults.elevationGain).toString() ? elevationGain : undefined,
             elevationLoss: elevationLoss !== Math.round(statsDefaults.elevationLoss).toString() ? elevationLoss : undefined,
+            dateStart: dateStart || undefined,
+            dateEnd: isDateRange && dateEnd ? dateEnd : undefined,
         });
     };
 
@@ -137,6 +144,9 @@ export default function EditPanel({
         setDistance(statsDefaults.distance.toFixed(1));
         setElevationGain(Math.round(statsDefaults.elevationGain).toString());
         setElevationLoss(Math.round(statsDefaults.elevationLoss).toString());
+        setDateStart('');
+        setDateEnd('');
+        setIsDateRange(false);
     };
 
     const handleToggleImageEnabled = (enabled: boolean) => {
@@ -556,6 +566,40 @@ export default function EditPanel({
                                         placeholder="0"
                                         className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
                                     />
+                                </div>
+
+                                <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="block text-xs font-medium text-neutral-600">
+                                            Date
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsDateRange(!isDateRange)}
+                                            className="text-[10px] text-neutral-500 hover:text-neutral-700 transition-colors"
+                                        >
+                                            {isDateRange ? 'Single date' : 'Date range'}
+                                        </button>
+                                    </div>
+                                    <div className={`flex gap-2 ${isDateRange ? '' : ''}`}>
+                                        <input
+                                            type="date"
+                                            value={dateStart}
+                                            onChange={(e) => setDateStart(e.target.value)}
+                                            className="flex-1 px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+                                        />
+                                        {isDateRange && (
+                                            <>
+                                                <span className="flex items-center text-neutral-400 text-sm">–</span>
+                                                <input
+                                                    type="date"
+                                                    value={dateEnd}
+                                                    onChange={(e) => setDateEnd(e.target.value)}
+                                                    className="flex-1 px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+                                                />
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <button

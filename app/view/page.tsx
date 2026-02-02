@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import ArtCanvas, { ArtCanvasHandle, StatsOverrides, RouteDefaults, ImageOverride } from '@/components/ArtCanvas';
 import EditPanel from '@/components/EditPanel';
 import { Landmark } from '@/lib/landmarks';
-import { Download, ArrowLeft, Pencil, RectangleHorizontal, RectangleVertical } from 'lucide-react';
+import { Download, ArrowLeft, Pencil, RectangleHorizontal, RectangleVertical, Moon, Sun } from 'lucide-react';
 
 export default function ViewPage() {
     const router = useRouter();
@@ -36,6 +36,9 @@ export default function ViewPage() {
 
     // Poster orientation state
     const [isPortrait, setIsPortrait] = useState(false);
+
+    // Canvas dark mode state
+    const [isDarkMode, setIsDarkMode] = useState(false);
 
     // Click-to-place landmark state
     const [isPlacingLandmark, setIsPlacingLandmark] = useState(false);
@@ -194,7 +197,14 @@ export default function ViewPage() {
 
     // Track which landmarks are within the visible map bounds (for edit panel filtering)
     const handleInBoundsLandmarksCalculated = useCallback((inBoundsIds: number[]) => {
-        setInBoundsLandmarkIds(new Set(inBoundsIds));
+        setInBoundsLandmarkIds(prev => {
+            // Only update if the IDs actually changed to prevent infinite loops
+            const newSet = new Set(inBoundsIds);
+            if (prev && prev.size === newSet.size && [...prev].every(id => newSet.has(id))) {
+                return prev;
+            }
+            return newSet;
+        });
     }, []);
 
     const handleToggleLandmark = (id: number) => {
@@ -304,6 +314,17 @@ export default function ViewPage() {
                 </div>
                 <div className="flex gap-2">
                     <button
+                        onClick={() => setIsDarkMode(!isDarkMode)}
+                        className="flex items-center gap-2 px-4 py-2 border border-neutral-300 bg-white text-neutral-900 rounded-md hover:bg-neutral-50 transition-colors text-sm font-medium"
+                        title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                    >
+                        {isDarkMode ? (
+                            <Sun className="w-4 h-4" />
+                        ) : (
+                            <Moon className="w-4 h-4" />
+                        )}
+                    </button>
+                    <button
                         onClick={() => setIsPortrait(!isPortrait)}
                         className="flex items-center gap-2 px-4 py-2 border border-neutral-300 bg-white text-neutral-900 rounded-md hover:bg-neutral-50 transition-colors text-sm font-medium"
                         title={isPortrait ? 'Switch to landscape' : 'Switch to portrait'}
@@ -362,6 +383,7 @@ export default function ViewPage() {
                             statsOverrides={statsOverrides}
                             imageOverride={imageOverride}
                             isPlacingLandmark={isPlacingLandmark}
+                            isDarkMode={isDarkMode}
                             onLandmarksLoaded={handleLandmarksLoaded}
                             onVisibleLandmarksCalculated={handleVisibleLandmarksCalculated}
                             onInBoundsLandmarksCalculated={handleInBoundsLandmarksCalculated}
