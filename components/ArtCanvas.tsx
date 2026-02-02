@@ -12,6 +12,7 @@ import { Loader2 } from 'lucide-react';
 
 export interface StatsOverrides {
     routeName?: string;
+    location?: string;
     distance?: string;
     elevationGain?: string;
     elevationLoss?: string;
@@ -545,18 +546,52 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 visibleLandmarkIds.push(landmark.id);
 
                 // Label text
-                const label = landmark.elevation
-                    ? `${landmark.name} (${Math.round(landmark.elevation)}m)`
-                    : landmark.name;
-
-                // Estimate label width for positioning
-                const estimatedLabelWidth = label.length * 5.5;
+                const labelName = landmark.name;
+                const labelElevation = landmark.elevation ? `(${Math.round(landmark.elevation)}m)` : '';
 
                 // Determine label position based on which side of route
                 const labelOnLeft = isLeftOfRoute(x, y);
-                const labelX = labelOnLeft ? x - 8 - estimatedLabelWidth : x + 8;
-                const labelY = y + 3;
                 const textAnchor = labelOnLeft ? "end" : "start";
+                const labelBaseX = labelOnLeft ? x - 8 : x + 8;
+                const labelBaseY = y + 3;
+                const lineHeight = 11;
+                const charWidth = 5.5;
+
+                // Calculate available space to the edge
+                const availableWidth = labelOnLeft
+                    ? x - 8 - clipBounds.minX - 5
+                    : clipBounds.maxX - x - 8 - 5;
+
+                // Split name into words and wrap if needed
+                const words = labelName.split(' ');
+                const lines: string[] = [];
+                let currentLine = '';
+
+                words.forEach((word) => {
+                    const testLine = currentLine ? `${currentLine} ${word}` : word;
+                    const testWidth = testLine.length * charWidth;
+
+                    if (testWidth > availableWidth && currentLine) {
+                        lines.push(currentLine);
+                        currentLine = word;
+                    } else {
+                        currentLine = testLine;
+                    }
+                });
+                if (currentLine) {
+                    lines.push(currentLine);
+                }
+
+                // Add elevation to last line if it fits, otherwise new line
+                if (labelElevation) {
+                    const lastLine = lines[lines.length - 1];
+                    const combinedWidth = (lastLine.length + 1 + labelElevation.length) * charWidth;
+                    if (combinedWidth <= availableWidth) {
+                        lines[lines.length - 1] = `${lastLine} ${labelElevation}`;
+                    } else {
+                        lines.push(labelElevation);
+                    }
+                }
 
                 // Draw marker based on type
                 if (landmark.type === 'peak' || landmark.type === 'volcano') {
@@ -578,30 +613,35 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                         .attr("stroke-width", 1.5);
                 }
 
-                // Background for readability
-                landmarkGroup.append("text")
-                    .attr("x", labelOnLeft ? x - 8 : x + 8)
-                    .attr("y", labelY)
-                    .attr("text-anchor", textAnchor)
-                    .attr("font-family", "system-ui, sans-serif")
-                    .attr("font-size", "9px")
-                    .attr("font-weight", "500")
-                    .attr("fill", colors.labelStroke)
-                    .attr("stroke", colors.labelStroke)
-                    .attr("stroke-width", 3)
-                    .attr("paint-order", "stroke")
-                    .text(label);
+                // Render each line of text
+                lines.forEach((line, lineIdx) => {
+                    const lineY = labelBaseY + (lineIdx * lineHeight);
 
-                // Text on top
-                landmarkGroup.append("text")
-                    .attr("x", labelOnLeft ? x - 8 : x + 8)
-                    .attr("y", labelY)
-                    .attr("text-anchor", textAnchor)
-                    .attr("font-family", "system-ui, sans-serif")
-                    .attr("font-size", "9px")
-                    .attr("font-weight", "500")
-                    .attr("fill", colors.labelFill)
-                    .text(label);
+                    // Background for readability
+                    landmarkGroup.append("text")
+                        .attr("x", labelBaseX)
+                        .attr("y", lineY)
+                        .attr("text-anchor", textAnchor)
+                        .attr("font-family", "system-ui, sans-serif")
+                        .attr("font-size", "9px")
+                        .attr("font-weight", "500")
+                        .attr("fill", colors.labelStroke)
+                        .attr("stroke", colors.labelStroke)
+                        .attr("stroke-width", 3)
+                        .attr("paint-order", "stroke")
+                        .text(line);
+
+                    // Text on top
+                    landmarkGroup.append("text")
+                        .attr("x", labelBaseX)
+                        .attr("y", lineY)
+                        .attr("text-anchor", textAnchor)
+                        .attr("font-family", "system-ui, sans-serif")
+                        .attr("font-size", "9px")
+                        .attr("font-weight", "500")
+                        .attr("fill", colors.labelFill)
+                        .text(line);
+                });
             });
 
             // Report which landmarks are actually visible (for initial selection)
@@ -651,11 +691,10 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             }
         }
 
-        // Format stats as a single line
+        // Format stats components
         const distanceText = `${displayDistance} km`;
         const ascentText = displayElevationGain ? `↑${displayElevationGain}m` : '';
         const descentText = displayElevationLoss ? `↓${displayElevationLoss}m` : '';
-        const statsText = [dateText, distanceText, ascentText, descentText].filter(Boolean).join('  ·  ');
 
         // Determine image URL (custom override, default flag, or none)
         const imageEnabled = imageOverride?.enabled !== false;
@@ -665,15 +704,80 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
         // Stat bar area
         const statBarTop = height - posterPadding - titleAreaHeight;
-        const statBarY = statBarTop + titleAreaHeight / 2;
+        const locationText = statsOverrides?.location || '';
+        const hasLocation = !!locationText;
 
         // Stat bar group
         const statBarGroup = svg.append("g").attr("class", "stat-bar");
 
-        // Route name (left side)
+        // Calculate dimensions
+        const locationFontSize = 10 * scaleFactor;
+        const lineGap = 4 * scaleFactor;
+        const charWidthTitle = titleFontSize * 0.65; // Approximate character width for uppercase
+        const charWidthDetail = detailFontSize * 0.55;
+
+        // Calculate flag dimensions
+        const flagHeight = imageUrl ? titleAreaHeight * 0.6 : 0;
+        const flagWidth = imageUrl ? flagHeight * 1.5 : 0;
+        const flagGap = imageUrl ? 12 * scaleFactor : 0;
+
+        // Estimate widths
+        const titleWidth = routeName.length * charWidthTitle;
+        const locationWidth = hasLocation ? locationText.length * charWidthDetail * 0.9 : 0;
+        const leftContentWidth = Math.max(titleWidth, locationWidth);
+
+        // Available width for stats (right side)
+        const availableStatsWidth = width - posterPadding * 2 - leftContentWidth - flagWidth - flagGap - 20 * scaleFactor;
+
+        // Build stats text, potentially splitting into two lines if needed
+        const statsLine1Parts = [dateText, distanceText, ascentText, descentText].filter(Boolean);
+        const fullStatsText = statsLine1Parts.join('  ·  ');
+        const fullStatsWidth = fullStatsText.length * charWidthDetail;
+
+        // Check if we need to split stats into two lines
+        let statsTextLine1 = '';
+        let statsTextLine2 = '';
+
+        if (fullStatsWidth <= availableStatsWidth) {
+            // Everything fits on one line
+            statsTextLine1 = fullStatsText;
+        } else {
+            // Split: date on line 1 (with location), distance/elevation on line 2 (with title)
+            if (dateText) {
+                statsTextLine1 = dateText;
+                statsTextLine2 = [distanceText, ascentText, descentText].filter(Boolean).join('  ·  ');
+            } else {
+                // No date, just put distance/elevation, maybe split if still too long
+                const metricsText = [distanceText, ascentText, descentText].filter(Boolean).join('  ·  ');
+                if (metricsText.length * charWidthDetail <= availableStatsWidth) {
+                    statsTextLine1 = metricsText;
+                } else {
+                    // Split metrics across two lines
+                    statsTextLine1 = distanceText;
+                    statsTextLine2 = [ascentText, descentText].filter(Boolean).join('  ·  ');
+                }
+            }
+        }
+
+        // Calculate vertical positions - now potentially 2 lines on each side
+        const hasStatsLine2 = !!statsTextLine2;
+        const leftHasTwoLines = hasLocation;
+        const rightHasTwoLines = hasStatsLine2;
+        const hasTwoLines = leftHasTwoLines || rightHasTwoLines;
+
+        const totalTextHeight = hasTwoLines
+            ? titleFontSize + lineGap + Math.max(locationFontSize, detailFontSize)
+            : titleFontSize;
+        const titleY = statBarTop + (titleAreaHeight - totalTextHeight) / 2 + titleFontSize;
+        const secondLineY = titleY + lineGap + Math.max(locationFontSize, detailFontSize);
+
+        // Stats X position (right side, before flag)
+        const statsX = width - posterPadding - flagWidth - flagGap;
+
+        // Route name (left side, top)
         statBarGroup.append("text")
             .attr("x", posterPadding)
-            .attr("y", statBarY + titleFontSize / 3)
+            .attr("y", titleY)
             .attr("font-family", "system-ui, sans-serif")
             .attr("font-size", `${titleFontSize}px`)
             .attr("font-weight", "600")
@@ -681,25 +785,48 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("fill", colors.titleFill)
             .text(routeName.toUpperCase());
 
-        // Stats text (right side, before flag if present)
-        const flagHeight = imageUrl ? titleAreaHeight * 0.6 : 0;
-        const flagWidth = imageUrl ? flagHeight * 1.5 : 0;
-        const flagGap = imageUrl ? 12 * scaleFactor : 0;
-        const statsX = width - posterPadding - flagWidth - flagGap;
+        // Location (left side, below title)
+        if (hasLocation) {
+            statBarGroup.append("text")
+                .attr("x", posterPadding)
+                .attr("y", secondLineY)
+                .attr("font-family", "system-ui, sans-serif")
+                .attr("font-size", `${locationFontSize}px`)
+                .attr("font-weight", "400")
+                .attr("fill", colors.statsFill)
+                .text(locationText);
+        }
 
-        statBarGroup.append("text")
-            .attr("x", statsX)
-            .attr("y", statBarY + detailFontSize / 3)
-            .attr("text-anchor", "end")
-            .attr("font-family", "system-ui, sans-serif")
-            .attr("font-size", `${detailFontSize}px`)
-            .attr("fill", colors.statsFill)
-            .text(statsText);
+        // Stats line 2 (right side, aligned with title) - metrics like distance/elevation
+        if (statsTextLine2) {
+            statBarGroup.append("text")
+                .attr("x", statsX)
+                .attr("y", titleY)
+                .attr("text-anchor", "end")
+                .attr("font-family", "system-ui, sans-serif")
+                .attr("font-size", `${detailFontSize}px`)
+                .attr("fill", colors.statsFill)
+                .text(statsTextLine2);
+        }
 
-        // Flag/image (far right)
+        // Stats line 1 (right side, aligned with location/second line) - date or all stats if fits
+        if (statsTextLine1) {
+            const statsLine1Y = hasTwoLines ? secondLineY : titleY;
+            statBarGroup.append("text")
+                .attr("x", statsX)
+                .attr("y", statsLine1Y)
+                .attr("text-anchor", "end")
+                .attr("font-family", "system-ui, sans-serif")
+                .attr("font-size", `${detailFontSize}px`)
+                .attr("fill", colors.statsFill)
+                .text(statsTextLine1);
+        }
+
+        // Flag/image (far right, vertically centered)
         if (imageUrl) {
             const flagX = width - posterPadding - flagWidth;
-            const flagY = statBarY - flagHeight / 2;
+            const flagCenterY = statBarTop + titleAreaHeight / 2;
+            const flagY = flagCenterY - flagHeight / 2;
 
             statBarGroup.append("image")
                 .attr("x", flagX)

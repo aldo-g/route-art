@@ -7,6 +7,7 @@ import { Landmark } from '@/lib/landmarks';
 
 export interface StatsOverrides {
     routeName?: string;
+    location?: string;
     distance?: string;
     elevationGain?: string;
     elevationLoss?: string;
@@ -112,6 +113,7 @@ export default function EditPanel({
 
     // Stats editing state
     const [routeName, setRouteName] = useState(statsOverrides.routeName ?? statsDefaults?.routeName ?? '');
+    const [location, setLocation] = useState(statsOverrides.location ?? '');
     const [distance, setDistance] = useState(statsOverrides.distance ?? statsDefaults?.distance.toFixed(1) ?? '');
     const [elevationGain, setElevationGain] = useState(
         statsOverrides.elevationGain ?? (statsDefaults ? Math.round(statsDefaults.elevationGain).toString() : '')
@@ -130,6 +132,7 @@ export default function EditPanel({
         if (!statsDefaults) return;
         onSaveStats({
             routeName: routeName !== statsDefaults.routeName ? routeName : undefined,
+            location: location || undefined,
             distance: distance !== statsDefaults.distance.toFixed(1) ? distance : undefined,
             elevationGain: elevationGain !== Math.round(statsDefaults.elevationGain).toString() ? elevationGain : undefined,
             elevationLoss: elevationLoss !== Math.round(statsDefaults.elevationLoss).toString() ? elevationLoss : undefined,
@@ -141,6 +144,7 @@ export default function EditPanel({
     const handleResetStats = () => {
         if (!statsDefaults) return;
         setRouteName(statsDefaults.routeName);
+        setLocation('');
         setDistance(statsDefaults.distance.toFixed(1));
         setElevationGain(Math.round(statsDefaults.elevationGain).toString());
         setElevationLoss(Math.round(statsDefaults.elevationLoss).toString());
@@ -526,6 +530,19 @@ export default function EditPanel({
                                         type="text"
                                         value={routeName}
                                         onChange={(e) => setRouteName(e.target.value)}
+                                        className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-neutral-600 mb-1">
+                                        Location
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={location}
+                                        onChange={(e) => setLocation(e.target.value)}
+                                        placeholder="e.g. Albanian Alps, Albania"
                                         className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent"
                                     />
                                 </div>
