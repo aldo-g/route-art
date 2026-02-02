@@ -1,6 +1,6 @@
 // lib/landmarks.ts
 
-import { Feature, LineString } from 'geojson';
+import { Feature, LineString, MultiLineString } from 'geojson';
 
 export interface Landmark {
     id: number;
@@ -15,7 +15,7 @@ export interface Landmark {
 
 export const fetchLandmarks = async (
     bbox: { minLng: number; minLat: number; maxLng: number; maxLat: number },
-    route?: Feature<LineString>,
+    route?: Feature<LineString | MultiLineString>,
     options?: { maxDistance?: number; limit?: number }
 ): Promise<Landmark[]> => {
     const response = await fetch('/api/landmarks', {

@@ -1,6 +1,6 @@
 
 // lib/geo.ts
-import { FeatureCollection, Feature, LineString } from 'geojson';
+import { FeatureCollection, Feature, LineString, MultiLineString, Position } from 'geojson';
 import * as turf from '@turf/turf';
 
 export interface RouteStats {
@@ -14,69 +14,66 @@ export interface RouteStats {
 }
 
 export interface ProcessedRoute {
-    feature: Feature<LineString>;
+    feature: Feature<LineString | MultiLineString>;
     stats: RouteStats;
     convexHull?: Feature;
     name?: string;
 }
 
-export const processRoute = (geoJson: FeatureCollection | Feature<LineString>): ProcessedRoute | null => {
-    let lineString: Feature<LineString> | null = null;
+export const processRoute = (geoJson: FeatureCollection | Feature<LineString | MultiLineString>): ProcessedRoute | null => {
+    let feature: Feature<LineString | MultiLineString> | null = null;
 
-    // Flatten FeatureCollection to find the first LineString
-    // Strava/GPX usually results in a FeatureCollection
+    // Find the first LineString or MultiLineString feature
     if (geoJson.type === 'FeatureCollection') {
         const features = (geoJson as FeatureCollection).features;
         const track = features.find(f => f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString');
 
         if (track) {
-            if (track.geometry.type === 'MultiLineString') {
-                // Convert MultiLineString to LineString if connected, or just take the longest segment?
-                // For simplicity, let's take the first coordinate array if it's MultiLineString, or flatten.
-                // Turf can help flattened.
-                // But usually GPX tracks are LineStrings.
-                // If MultiLineString, we can try to merge.
-                // For now, let's assume LineString or conversion.
-                const flattened = turf.flatten(track as any);
-                if (flattened.features.length > 0) {
-                    lineString = flattened.features[0] as unknown as Feature<LineString>;
-                }
-            } else {
-                lineString = track as Feature<LineString>;
-            }
+            feature = track as Feature<LineString | MultiLineString>;
         }
-    } else if (geoJson.type === 'Feature' && geoJson.geometry.type === 'LineString') {
-        lineString = geoJson as Feature<LineString>;
+    } else if (geoJson.type === 'Feature' && (geoJson.geometry.type === 'LineString' || geoJson.geometry.type === 'MultiLineString')) {
+        feature = geoJson as Feature<LineString | MultiLineString>;
     }
 
-    if (!lineString) return null;
+    if (!feature) return null;
 
     // Calculate Stats
-    const distance = turf.length(lineString, { units: 'kilometers' });
-    const center = turf.center(lineString).geometry.coordinates as [number, number];
-    const bbox = turf.bbox(lineString) as [number, number, number, number];
+    const distance = turf.length(feature, { units: 'kilometers' });
+    const center = turf.center(feature).geometry.coordinates as [number, number];
+    const bbox = turf.bbox(feature) as [number, number, number, number];
+
+    // Get all coordinates (flattened for stats calculation)
+    const allCoords: Position[] = feature.geometry.type === 'MultiLineString'
+        ? feature.geometry.coordinates.flat()
+        : feature.geometry.coordinates;
 
     // Calculate elevation stats from coordinates (GPX stores elevation as 3rd coordinate)
-    const coords = lineString.geometry.coordinates;
     let elevationGain = 0;
     let elevationLoss = 0;
     let minElevation = Infinity;
     let maxElevation = -Infinity;
 
-    for (let i = 0; i < coords.length; i++) {
-        const elevation = coords[i][2]; // 3rd element is elevation if present
-        if (typeof elevation === 'number' && !isNaN(elevation)) {
-            minElevation = Math.min(minElevation, elevation);
-            maxElevation = Math.max(maxElevation, elevation);
+    // For MultiLineString, calculate elevation per segment to avoid false elevation changes between segments
+    const coordArrays: Position[][] = feature.geometry.type === 'MultiLineString'
+        ? feature.geometry.coordinates
+        : [feature.geometry.coordinates];
 
-            if (i > 0) {
-                const prevElevation = coords[i - 1][2];
-                if (typeof prevElevation === 'number' && !isNaN(prevElevation)) {
-                    const diff = elevation - prevElevation;
-                    if (diff > 0) {
-                        elevationGain += diff;
-                    } else {
-                        elevationLoss += Math.abs(diff);
+    for (const coords of coordArrays) {
+        for (let i = 0; i < coords.length; i++) {
+            const elevation = coords[i][2]; // 3rd element is elevation if present
+            if (typeof elevation === 'number' && !isNaN(elevation)) {
+                minElevation = Math.min(minElevation, elevation);
+                maxElevation = Math.max(maxElevation, elevation);
+
+                if (i > 0) {
+                    const prevElevation = coords[i - 1][2];
+                    if (typeof prevElevation === 'number' && !isNaN(prevElevation)) {
+                        const diff = elevation - prevElevation;
+                        if (diff > 0) {
+                            elevationGain += diff;
+                        } else {
+                            elevationLoss += Math.abs(diff);
+                        }
                     }
                 }
             }
@@ -88,13 +85,13 @@ export const processRoute = (geoJson: FeatureCollection | Feature<LineString>): 
     if (maxElevation === -Infinity) maxElevation = 0;
 
     // Extract route name from properties if available
-    const name = lineString.properties?.name as string | undefined;
+    const name = feature.properties?.name as string | undefined;
 
     // Convex Hull for framing
-    const hull = turf.convex(lineString);
+    const hull = turf.convex(feature);
 
     return {
-        feature: lineString,
+        feature,
         stats: {
             distance,
             center,

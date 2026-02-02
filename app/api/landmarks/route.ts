@@ -1,7 +1,7 @@
 // app/api/landmarks/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import * as turf from '@turf/turf';
-import { Feature, LineString } from 'geojson';
+import { Feature, LineString, MultiLineString } from 'geojson';
 
 interface LandmarkRequest {
     bbox: {
@@ -10,7 +10,7 @@ interface LandmarkRequest {
         maxLng: number;
         maxLat: number;
     };
-    route?: Feature<LineString>;
+    route?: Feature<LineString | MultiLineString>;
     maxDistance?: number; // km from route
     limit?: number;
 }
@@ -66,10 +66,23 @@ export async function POST(request: NextRequest) {
 
         // Filter by distance to route if route provided
         if (route) {
+            // For MultiLineString, find the minimum distance to any segment
+            const getDistanceToRoute = (point: ReturnType<typeof turf.point>, routeFeature: Feature<LineString | MultiLineString>): number => {
+                if (routeFeature.geometry.type === 'MultiLineString') {
+                    // Check distance to each line segment and return the minimum
+                    const distances = routeFeature.geometry.coordinates.map(coords => {
+                        const line = turf.lineString(coords);
+                        return turf.pointToLineDistance(point, line, { units: 'kilometers' });
+                    });
+                    return Math.min(...distances);
+                }
+                return turf.pointToLineDistance(point, routeFeature as Feature<LineString>, { units: 'kilometers' });
+            };
+
             landmarks = landmarks
                 .map(landmark => {
                     const point = turf.point([landmark.lng, landmark.lat]);
-                    const distance = turf.pointToLineDistance(point, route, { units: 'kilometers' });
+                    const distance = getDistanceToRoute(point, route);
                     return { ...landmark, distanceToRoute: distance };
                 })
                 .filter(l => l.distanceToRoute !== undefined && l.distanceToRoute <= maxDistance)

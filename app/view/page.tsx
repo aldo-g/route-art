@@ -260,12 +260,31 @@ export default function ViewPage() {
 
     const handleStatsOverridesSave = (overrides: StatsOverrides) => {
         setStatsOverrides(overrides);
-        sessionStorage.setItem('routeArtStatsOverrides', JSON.stringify(overrides));
+        try {
+            sessionStorage.setItem('routeArtStatsOverrides', JSON.stringify(overrides));
+        } catch {
+            // If quota exceeded, try clearing large image data first and retry
+            try {
+                sessionStorage.removeItem('routeArtImageOverride');
+                sessionStorage.setItem('routeArtStatsOverrides', JSON.stringify(overrides));
+            } catch {
+                console.warn('Failed to save stats overrides to sessionStorage (quota exceeded)');
+            }
+        }
     };
 
     const handleImageOverrideSave = (override: ImageOverride) => {
         setImageOverride(override);
-        sessionStorage.setItem('routeArtImageOverride', JSON.stringify(override));
+        try {
+            // Only persist non-data-URL images to avoid quota issues
+            const persistableOverride = {
+                enabled: override.enabled,
+                url: override.url?.startsWith('data:') ? undefined : override.url
+            };
+            sessionStorage.setItem('routeArtImageOverride', JSON.stringify(persistableOverride));
+        } catch {
+            console.warn('Failed to save image override to sessionStorage (quota exceeded)');
+        }
     };
 
     const handleCountryCodeDetected = useCallback((code: string | null) => {

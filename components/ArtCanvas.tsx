@@ -449,6 +449,52 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("stroke-linecap", "round")
             .attr("stroke-linejoin", "round");
 
+        // Add start and finish dots
+        // Handle both LineString and MultiLineString geometries
+        const geometry = processed.feature.geometry;
+        const coordArrays: [number, number][][] = geometry.type === 'MultiLineString'
+            ? geometry.coordinates as [number, number][][]
+            : [geometry.coordinates as [number, number][]];
+
+        // Get overall start (first point of first segment) and end (last point of last segment)
+        const firstSegment = coordArrays[0];
+        const lastSegment = coordArrays[coordArrays.length - 1];
+
+        if (firstSegment && firstSegment.length >= 1 && lastSegment && lastSegment.length >= 1) {
+            const startCoord = projection(firstSegment[0]);
+            const endCoord = projection(lastSegment[lastSegment.length - 1]);
+
+            if (startCoord) {
+                routeGroup.append("circle")
+                    .attr("cx", startCoord[0])
+                    .attr("cy", startCoord[1])
+                    .attr("r", 5)
+                    .attr("fill", colors.routeOutline)
+                    .attr("stroke", "none");
+                routeGroup.append("circle")
+                    .attr("cx", startCoord[0])
+                    .attr("cy", startCoord[1])
+                    .attr("r", 3)
+                    .attr("fill", colors.routeStroke)
+                    .attr("stroke", "none");
+            }
+
+            if (endCoord) {
+                routeGroup.append("circle")
+                    .attr("cx", endCoord[0])
+                    .attr("cy", endCoord[1])
+                    .attr("r", 5)
+                    .attr("fill", colors.routeOutline)
+                    .attr("stroke", "none");
+                routeGroup.append("circle")
+                    .attr("cx", endCoord[0])
+                    .attr("cy", endCoord[1])
+                    .attr("r", 3)
+                    .attr("fill", colors.routeStroke)
+                    .attr("stroke", "none");
+            }
+        }
+
         // 4. Render Landmarks (spacing only applies for initial auto-selection)
         if (landmarks.length > 0) {
             const landmarkGroup = svg.append("g")
@@ -456,8 +502,12 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 .attr("clip-path", `url(#${clipId})`);
 
             // Get projected route coordinates for determining label side
-            const routeCoords = processed.feature.geometry.coordinates.map(
-                coord => projection(coord as [number, number])
+            // Handle both LineString and MultiLineString
+            const allCoords: [number, number][] = geometry.type === 'MultiLineString'
+                ? (geometry.coordinates as [number, number][][]).flat()
+                : geometry.coordinates as [number, number][];
+            const routeCoords = allCoords.map(
+                coord => projection(coord)
             ).filter((c): c is [number, number] => c !== null);
 
             // Find closest point on route to determine which side landmark is on
@@ -730,39 +780,39 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const availableStatsWidth = width - posterPadding * 2 - leftContentWidth - flagWidth - flagGap - 20 * scaleFactor;
 
         // Build stats text, potentially splitting into two lines if needed
-        const statsLine1Parts = [dateText, distanceText, ascentText, descentText].filter(Boolean);
-        const fullStatsText = statsLine1Parts.join('  ·  ');
+        const metricsText = [distanceText, ascentText, descentText].filter(Boolean).join('  ·  ');
+        const fullStatsText = dateText
+            ? `${metricsText}  ·  ${dateText}`
+            : metricsText;
         const fullStatsWidth = fullStatsText.length * charWidthDetail;
 
         // Check if we need to split stats into two lines
-        let statsTextLine1 = '';
-        let statsTextLine2 = '';
+        // Line 1 (top, aligned with title): metrics (distance, elevation)
+        // Line 2 (bottom, aligned with location): date
+        let statsTopLine = '';  // Metrics - aligned with title
+        let statsBottomLine = '';  // Date - aligned with location
 
-        if (fullStatsWidth <= availableStatsWidth) {
-            // Everything fits on one line
-            statsTextLine1 = fullStatsText;
+        if (fullStatsWidth <= availableStatsWidth && !hasLocation) {
+            // Everything fits on one line and no location means single line layout
+            statsTopLine = fullStatsText;
+        } else if (hasLocation || dateText) {
+            // Two-line layout: metrics on top, date on bottom
+            statsTopLine = metricsText;
+            statsBottomLine = dateText;
         } else {
-            // Split: date on line 1 (with location), distance/elevation on line 2 (with title)
-            if (dateText) {
-                statsTextLine1 = dateText;
-                statsTextLine2 = [distanceText, ascentText, descentText].filter(Boolean).join('  ·  ');
+            // No date and no location, but metrics don't fit - split metrics
+            if (metricsText.length * charWidthDetail <= availableStatsWidth) {
+                statsTopLine = metricsText;
             } else {
-                // No date, just put distance/elevation, maybe split if still too long
-                const metricsText = [distanceText, ascentText, descentText].filter(Boolean).join('  ·  ');
-                if (metricsText.length * charWidthDetail <= availableStatsWidth) {
-                    statsTextLine1 = metricsText;
-                } else {
-                    // Split metrics across two lines
-                    statsTextLine1 = distanceText;
-                    statsTextLine2 = [ascentText, descentText].filter(Boolean).join('  ·  ');
-                }
+                statsTopLine = distanceText;
+                statsBottomLine = [ascentText, descentText].filter(Boolean).join('  ·  ');
             }
         }
 
         // Calculate vertical positions - now potentially 2 lines on each side
-        const hasStatsLine2 = !!statsTextLine2;
+        const hasBottomStats = !!statsBottomLine;
         const leftHasTwoLines = hasLocation;
-        const rightHasTwoLines = hasStatsLine2;
+        const rightHasTwoLines = hasBottomStats;
         const hasTwoLines = leftHasTwoLines || rightHasTwoLines;
 
         const totalTextHeight = hasTwoLines
@@ -797,8 +847,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 .text(locationText);
         }
 
-        // Stats line 2 (right side, aligned with title) - metrics like distance/elevation
-        if (statsTextLine2) {
+        // Stats top line (right side, aligned with title) - metrics like distance/elevation
+        if (statsTopLine) {
             statBarGroup.append("text")
                 .attr("x", statsX)
                 .attr("y", titleY)
@@ -806,20 +856,19 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 .attr("font-family", "system-ui, sans-serif")
                 .attr("font-size", `${detailFontSize}px`)
                 .attr("fill", colors.statsFill)
-                .text(statsTextLine2);
+                .text(statsTopLine);
         }
 
-        // Stats line 1 (right side, aligned with location/second line) - date or all stats if fits
-        if (statsTextLine1) {
-            const statsLine1Y = hasTwoLines ? secondLineY : titleY;
+        // Stats bottom line (right side, aligned with location) - date
+        if (statsBottomLine) {
             statBarGroup.append("text")
                 .attr("x", statsX)
-                .attr("y", statsLine1Y)
+                .attr("y", secondLineY)
                 .attr("text-anchor", "end")
                 .attr("font-family", "system-ui, sans-serif")
                 .attr("font-size", `${detailFontSize}px`)
                 .attr("fill", colors.statsFill)
-                .text(statsTextLine1);
+                .text(statsBottomLine);
         }
 
         // Flag/image (far right, vertically centered)
