@@ -333,18 +333,18 @@ export default function ViewPage() {
         <main className="h-screen bg-neutral-100 text-neutral-900 flex flex-col font-sans overflow-hidden">
             <Header showBackButton onBack={handleBack} />
 
-            <div className="flex-1 flex min-h-0 overflow-hidden">
-                <div className={`flex-1 flex items-center justify-center min-h-0 ${isPortrait ? 'py-2 px-4' : 'p-6'}`}>
+            <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+                <div className={`flex-1 flex items-center justify-center min-h-0 ${isPortrait ? 'py-2 px-4' : 'p-4 lg:p-6'}`}>
                     <div
                         className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden relative"
                         style={isPortrait ? {
                             aspectRatio: '2 / 3',
-                            height: '85vh',
-                            maxWidth: 'calc(85vh * 0.667)' // 2:3 ratio constraint
+                            height: 'min(70vh, calc(100vw * 1.5))',
+                            maxWidth: 'calc(70vh * 0.667)' // 2:3 ratio constraint
                         } : {
                             aspectRatio: '3 / 2',
                             width: '100%',
-                            maxWidth: 'calc((100vh - 180px) * 1.5)', // 3:2 ratio constraint
+                            maxWidth: 'min(calc((100vh - 180px) * 1.5), 100%)', // 3:2 ratio constraint
                             maxHeight: 'calc(100vh - 180px)'
                         }}
                     >
@@ -397,7 +397,9 @@ export default function ViewPage() {
                     onExportPNG={handleExportPNG}
                 />
             </div>
-            <Footer />
+            <div className="hidden lg:block">
+                <Footer />
+            </div>
         </main>
     );
 }

@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { ChevronDown, ChevronRight, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star, Download, Heart, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronUp, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star, Download, Heart, X, Settings } from 'lucide-react';
 import { Landmark } from '@/lib/landmarks';
 
 export interface StatsOverrides {
@@ -337,15 +337,51 @@ export default function EditPanel({
     const totalCount = landmarks.length;
     const defaultFlagUrl = countryCode ? `https://flagcdn.com/${countryCode.toLowerCase()}.svg` : null;
 
-    return (
-        <div className="w-72 h-full max-h-full bg-white border-l border-neutral-200 flex flex-col flex-shrink-0 overflow-hidden">
-            {/* Header */}
-            <div className="p-4 border-b border-neutral-200">
-                <h3 className="font-semibold text-sm">Customize</h3>
-            </div>
+    // Mobile drawer state
+    const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-            {/* Collapsible Sections */}
-            <div className="flex-1 overflow-y-auto">
+    return (
+        <>
+            {/* Mobile toggle button - fixed at bottom */}
+            <button
+                onClick={() => setIsMobileOpen(!isMobileOpen)}
+                className="lg:hidden fixed bottom-4 right-4 z-40 flex items-center gap-2 px-4 py-3 bg-neutral-900 text-white rounded-full shadow-lg"
+            >
+                <Settings className="w-5 h-5" />
+                <span className="text-sm font-medium">Customize</span>
+                <ChevronUp className={`w-4 h-4 transition-transform ${isMobileOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* Mobile overlay */}
+            {isMobileOpen && (
+                <div
+                    className="lg:hidden fixed inset-0 bg-black/50 z-40"
+                    onClick={() => setIsMobileOpen(false)}
+                />
+            )}
+
+            {/* Panel - sidebar on desktop, bottom drawer on mobile */}
+            <div className={`
+                lg:relative lg:w-72 lg:h-full lg:max-h-full lg:translate-y-0
+                fixed bottom-0 left-0 right-0 z-50 max-h-[70vh]
+                bg-white border-l border-neutral-200 flex flex-col flex-shrink-0 overflow-hidden
+                transition-transform duration-300 ease-out
+                ${isMobileOpen ? 'translate-y-0' : 'translate-y-full lg:translate-y-0'}
+                rounded-t-xl lg:rounded-none shadow-xl lg:shadow-none
+            `}>
+                {/* Header */}
+                <div className="p-4 border-b border-neutral-200 flex items-center justify-between">
+                    <h3 className="font-semibold text-sm">Customize</h3>
+                    <button
+                        onClick={() => setIsMobileOpen(false)}
+                        className="lg:hidden p-1 hover:bg-neutral-100 rounded"
+                    >
+                        <X className="w-5 h-5 text-neutral-500" />
+                    </button>
+                </div>
+
+                {/* Collapsible Sections */}
+                <div className="flex-1 overflow-y-auto">
                 {/* Landmarks Section */}
                 <CollapsibleSection
                     title="Landmarks"
@@ -836,6 +872,7 @@ export default function EditPanel({
                     </div>
                 </div>
             )}
-        </div>
+            </div>
+        </>
     );
 }
