@@ -60,8 +60,6 @@ interface EditPanelProps {
     isDarkMode: boolean;
     onToggleDarkMode: (value: boolean) => void;
     // Download props
-    onExportSVG: () => void;
-    onExportPDF: () => void;
     onExportPNG: () => void;
 }
 
@@ -132,8 +130,6 @@ export default function EditPanel({
     onToggleOrientation,
     isDarkMode,
     onToggleDarkMode,
-    onExportSVG,
-    onExportPDF,
     onExportPNG,
 }: EditPanelProps) {
     // Section open/closed state
@@ -141,7 +137,6 @@ export default function EditPanel({
         landmarks: true,
         statbar: false,
         design: false,
-        download: false,
     });
 
     const toggleSection = (section: keyof typeof sectionsOpen) => {
@@ -219,16 +214,6 @@ export default function EditPanel({
 
     // Tip modal state
     const [showTipModal, setShowTipModal] = useState(false);
-
-    const handleDownloadSVG = () => {
-        onExportSVG();
-        setShowTipModal(true);
-    };
-
-    const handleDownloadPDF = () => {
-        onExportPDF();
-        setShowTipModal(true);
-    };
 
     const handleDownloadPNG = () => {
         onExportPNG();
@@ -797,48 +782,22 @@ export default function EditPanel({
                     </div>
                 </CollapsibleSection>
 
-                {/* Download Section */}
-                <CollapsibleSection
-                    title="Download"
-                    icon={<Download className="w-4 h-4" />}
-                    isOpen={sectionsOpen.download}
-                    onToggle={() => toggleSection('download')}
-                >
-                    <div className="space-y-2">
-                        <button
-                            onClick={handleDownloadPNG}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded hover:bg-neutral-800 transition-colors"
-                        >
-                            <Download className="w-4 h-4" />
-                            Download PNG
-                        </button>
-                        <button
-                            onClick={handleDownloadSVG}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 border border-neutral-300 text-neutral-900 text-sm font-medium rounded hover:bg-neutral-50 transition-colors"
-                        >
-                            <Download className="w-4 h-4" />
-                            Download SVG
-                        </button>
-                        <button
-                            onClick={handleDownloadPDF}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 border border-neutral-300 text-neutral-900 text-sm font-medium rounded hover:bg-neutral-50 transition-colors"
-                        >
-                            <Download className="w-4 h-4" />
-                            Download PDF
-                        </button>
-                        <p className="text-[10px] text-neutral-400 text-center">
-                            PNG for sharing, SVG for printing
-                        </p>
-                    </div>
-                </CollapsibleSection>
             </div>
 
-            {/* Purchase Button */}
-            <div className="p-3 border-t border-neutral-200">
+            {/* Download & Purchase */}
+            <div className="p-3 border-t border-neutral-200 space-y-2">
                 <button
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                    onClick={handleDownloadPNG}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 border border-neutral-300 text-neutral-900 text-sm font-medium rounded-lg hover:bg-neutral-50 transition-colors"
                 >
-                    Purchase Print
+                    <Download className="w-4 h-4" />
+                    Download PNG
+                </button>
+                <button
+                    disabled
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-neutral-300 text-neutral-500 text-sm font-medium rounded-lg cursor-not-allowed"
+                >
+                    Purchase Print – Coming Soon
                 </button>
             </div>
 

@@ -305,14 +305,6 @@ export default function ViewPage() {
         }
     };
 
-    const handleExportSVG = () => {
-        canvasRef.current?.exportSVG(fileName);
-    };
-
-    const handleExportPDF = () => {
-        canvasRef.current?.exportPDF(fileName);
-    };
-
     const handleExportPNG = () => {
         canvasRef.current?.exportPNG(fileName);
     };
@@ -411,8 +403,6 @@ export default function ViewPage() {
                     onToggleOrientation={setIsPortrait}
                     isDarkMode={isDarkMode}
                     onToggleDarkMode={setIsDarkMode}
-                    onExportSVG={handleExportSVG}
-                    onExportPDF={handleExportPDF}
                     onExportPNG={handleExportPNG}
                 />
             </div>
