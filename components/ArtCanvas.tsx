@@ -25,6 +25,8 @@ export interface RouteDefaults {
     distance: number;
     elevationGain: number;
     elevationLoss: number;
+    dateStart?: string;
+    dateEnd?: string;
 }
 
 export interface ImageOverride {
@@ -52,8 +54,9 @@ interface ArtCanvasProps {
 }
 
 export interface ArtCanvasHandle {
-    exportSVG: (fileName: string) => void;
-    exportPDF: (fileName: string) => void;
+    exportSVG: (fileName: string) => Promise<void>;
+    exportPDF: (fileName: string) => Promise<void>;
+    exportPNG: (fileName: string) => Promise<void>;
 }
 
 const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, showWater = true, showMarkers = true, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick }, ref) => {
@@ -302,38 +305,95 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
     }, [viewBbox, showWater]);
 
     useImperativeHandle(ref, () => ({
-        exportSVG: (fileName: string) => {
-            if (!svgRef.current) return;
+        exportSVG: async (fileName: string) => {
+            if (!svgRef.current || !containerSize) return;
 
             const svgElement = svgRef.current;
-            const { width, height } = svgElement.getBoundingClientRect();
+            // Use containerSize (the actual rendered content dimensions) instead of getBoundingClientRect
+            const { width, height } = containerSize;
 
             const svgClone = svgElement.cloneNode(true) as SVGSVGElement;
             svgClone.setAttribute('width', width.toString());
             svgClone.setAttribute('height', height.toString());
+            svgClone.setAttribute('viewBox', `0 0 ${width} ${height}`);
             svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
 
-            const svgData = new XMLSerializer().serializeToString(svgClone);
-            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-            const svgUrl = URL.createObjectURL(svgBlob);
+            // Convert external images to data URLs for portability
+            const images = svgClone.querySelectorAll('image');
+            for (const img of images) {
+                const href = img.getAttribute('href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+                if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+                    try {
+                        const response = await fetch(href);
+                        const blob = await response.blob();
+                        const dataUrl = await new Promise<string>((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result as string);
+                            reader.readAsDataURL(blob);
+                        });
+                        img.setAttribute('href', dataUrl);
+                        img.removeAttributeNS('http://www.w3.org/1999/xlink', 'href');
+                    } catch (e) {
+                        console.warn('Failed to convert image to data URL:', href, e);
+                    }
+                }
+            }
+
+            const serializer = new XMLSerializer();
+            const svgString = serializer.serializeToString(svgClone);
+            const svgData = '<?xml version="1.0" encoding="UTF-8"?>\n' + svgString;
+
+            // Use octet-stream to force download instead of browser preview
+            const blob = new Blob([svgData], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+
             const downloadLink = document.createElement('a');
-            downloadLink.href = svgUrl;
+            downloadLink.href = url;
             downloadLink.download = `${fileName.replace(/\.[^/.]+$/, "")}.svg`;
             document.body.appendChild(downloadLink);
             downloadLink.click();
             document.body.removeChild(downloadLink);
-            URL.revokeObjectURL(svgUrl);
+            URL.revokeObjectURL(url);
         },
-        exportPDF: (fileName: string) => {
-            if (!svgRef.current || !processed) return;
+        exportPDF: async (fileName: string) => {
+            if (!svgRef.current || !processed || !containerSize) return;
 
             const svgElement = svgRef.current;
-            const { width, height } = svgElement.getBoundingClientRect();
+            // Use containerSize (the actual rendered content dimensions) instead of getBoundingClientRect
+            const { width, height } = containerSize;
 
             const orientation = width > height ? 'l' : 'p';
             const pdf = new jsPDF(orientation, 'px', [width, height]);
 
-            const svgData = new XMLSerializer().serializeToString(svgRef.current);
+            // Clone the SVG and set explicit dimensions for proper rendering
+            const svgClone = svgElement.cloneNode(true) as SVGSVGElement;
+            svgClone.setAttribute('width', width.toString());
+            svgClone.setAttribute('height', height.toString());
+            svgClone.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+            // Convert external images to data URLs to avoid CORS issues when rendering to canvas
+            const images = svgClone.querySelectorAll('image');
+            for (const img of images) {
+                const href = img.getAttribute('href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+                if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+                    try {
+                        const response = await fetch(href);
+                        const blob = await response.blob();
+                        const dataUrl = await new Promise<string>((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result as string);
+                            reader.readAsDataURL(blob);
+                        });
+                        img.setAttribute('href', dataUrl);
+                        img.removeAttributeNS('http://www.w3.org/1999/xlink', 'href');
+                    } catch (e) {
+                        console.warn('Failed to convert image to data URL:', href, e);
+                    }
+                }
+            }
+
+            const svgData = new XMLSerializer().serializeToString(svgClone);
             const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
             const svgUrl = URL.createObjectURL(svgBlob);
 
@@ -350,6 +410,75 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                     const imgData = canvas.toDataURL('image/jpeg', 0.95);
                     pdf.addImage(imgData, 'JPEG', 0, 0, width, height);
                     pdf.save(`${fileName.replace(/\.[^/.]+$/, "")}.pdf`);
+                }
+                URL.revokeObjectURL(svgUrl);
+            };
+            img.src = svgUrl;
+        },
+        exportPNG: async (fileName: string) => {
+            if (!svgRef.current || !containerSize) return;
+
+            const svgElement = svgRef.current;
+            // Use containerSize (the actual rendered content dimensions) instead of getBoundingClientRect
+            // which may include extra space from CSS layout
+            const { width, height } = containerSize;
+
+            // Clone the SVG and set explicit dimensions for proper rendering
+            const svgClone = svgElement.cloneNode(true) as SVGSVGElement;
+            svgClone.setAttribute('width', width.toString());
+            svgClone.setAttribute('height', height.toString());
+            svgClone.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+            // Convert external images to data URLs to avoid CORS issues when rendering to canvas
+            const images = svgClone.querySelectorAll('image');
+            for (const img of images) {
+                const href = img.getAttribute('href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+                if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+                    try {
+                        const response = await fetch(href);
+                        const blob = await response.blob();
+                        const dataUrl = await new Promise<string>((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result as string);
+                            reader.readAsDataURL(blob);
+                        });
+                        img.setAttribute('href', dataUrl);
+                        img.removeAttributeNS('http://www.w3.org/1999/xlink', 'href');
+                    } catch (e) {
+                        console.warn('Failed to convert image to data URL:', href, e);
+                    }
+                }
+            }
+
+            const svgData = new XMLSerializer().serializeToString(svgClone);
+            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+            const svgUrl = URL.createObjectURL(svgBlob);
+
+            const img = new Image();
+            img.onload = () => {
+                // Use 2x resolution for high quality
+                const scale = 2;
+                const canvas = document.createElement('canvas');
+                canvas.width = width * scale;
+                canvas.height = height * scale;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            const url = URL.createObjectURL(blob);
+                            const downloadLink = document.createElement('a');
+                            downloadLink.href = url;
+                            downloadLink.download = `${fileName.replace(/\.[^/.]+$/, "")}.png`;
+                            document.body.appendChild(downloadLink);
+                            downloadLink.click();
+                            document.body.removeChild(downloadLink);
+                            URL.revokeObjectURL(url);
+                        }
+                    }, 'image/png');
                 }
                 URL.revokeObjectURL(svgUrl);
             };
@@ -778,16 +907,27 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
         // Default values from route data
         const defaultRouteName = processed.name || fileName?.replace(/\.[^/.]+$/, "") || "Route";
-        const defaultDistance = processed.stats.distance;
-        const defaultElevationGain = processed.stats.elevationGain;
-        const defaultElevationLoss = processed.stats.elevationLoss;
 
-        // Report defaults to parent for editing
+        // Check for Strava stats in GeoJSON properties (more accurate than calculated)
+        const stravaDistance = processed.feature.properties?.stravaDistance as number | undefined;
+        const stravaElevationGain = processed.feature.properties?.stravaElevationGain as number | undefined;
+        const stravaElevationLoss = processed.feature.properties?.stravaElevationLoss as number | undefined;
+        const stravaDateStart = processed.feature.properties?.stravaDateStart as string | undefined;
+        const stravaDateEnd = processed.feature.properties?.stravaDateEnd as string | undefined;
+
+        // Use Strava stats if available, otherwise fall back to calculated values
+        const defaultDistance = stravaDistance ? stravaDistance / 1000 : processed.stats.distance; // Strava is in meters
+        const defaultElevationGain = stravaElevationGain ?? processed.stats.elevationGain;
+        const defaultElevationLoss = stravaElevationLoss ?? processed.stats.elevationLoss;
+
+        // Report defaults to parent for editing (including Strava dates if available)
         onDefaultsCalculated?.({
             routeName: defaultRouteName,
             distance: defaultDistance,
             elevationGain: defaultElevationGain,
-            elevationLoss: defaultElevationLoss
+            elevationLoss: defaultElevationLoss,
+            dateStart: stravaDateStart,
+            dateEnd: stravaDateEnd,
         });
 
         // Apply overrides if provided
@@ -837,10 +977,11 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const charWidthTitle = titleFontSize * 0.65; // Approximate character width for uppercase
         const charWidthDetail = detailFontSize * 0.55;
 
-        // Calculate flag dimensions
-        const flagHeight = imageUrl ? titleAreaHeight * 0.6 : 0;
-        const flagWidth = imageUrl ? flagHeight * 1.5 : 0;
-        const flagGap = imageUrl ? 12 * scaleFactor : 0;
+        // Calculate flag/image dimensions - make it prominent
+        // Use 3:2 aspect ratio for flags (most common), custom images use xMidYMid meet to preserve ratio
+        const flagHeight = imageUrl ? titleAreaHeight * 0.85 : 0;
+        const flagWidth = imageUrl ? flagHeight * 1.5 : 0; // 3:2 aspect ratio for flags
+        const flagGap = imageUrl ? 16 * scaleFactor : 0;
 
         // Estimate widths
         const titleWidth = routeName.length * charWidthTitle;
@@ -886,11 +1027,18 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const rightHasTwoLines = hasBottomStats;
         const hasTwoLines = leftHasTwoLines || rightHasTwoLines;
 
+        // Calculate the total height of the text block
+        // For two lines: title height + gap + second line height (use larger of location/detail font)
+        const secondLineFontSize = Math.max(locationFontSize, detailFontSize);
         const totalTextHeight = hasTwoLines
-            ? titleFontSize + lineGap + Math.max(locationFontSize, detailFontSize)
+            ? titleFontSize + lineGap + secondLineFontSize
             : titleFontSize;
-        const titleY = statBarTop + (titleAreaHeight - totalTextHeight) / 2 + titleFontSize;
-        const secondLineY = titleY + lineGap + Math.max(locationFontSize, detailFontSize);
+
+        // Center the text block vertically in the title area
+        // titleY is the TOP of the first line (using hanging baseline)
+        const titleY = statBarTop + (titleAreaHeight - totalTextHeight) / 2;
+        // secondLineY is the TOP of the second line
+        const secondLineY = titleY + titleFontSize + lineGap;
 
         // Stats X position (right side, before flag)
         const statsX = width - posterPadding - flagWidth - flagGap;
@@ -899,6 +1047,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         statBarGroup.append("text")
             .attr("x", posterPadding)
             .attr("y", titleY)
+            .attr("dominant-baseline", "hanging")
             .attr("font-family", "Inter, system-ui, sans-serif")
             .attr("font-size", `${titleFontSize}px`)
             .attr("font-weight", "500")
@@ -911,6 +1060,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             statBarGroup.append("text")
                 .attr("x", posterPadding)
                 .attr("y", secondLineY)
+                .attr("dominant-baseline", "hanging")
                 .attr("font-family", "system-ui, sans-serif")
                 .attr("font-size", `${locationFontSize}px`)
                 .attr("font-weight", "400")
@@ -918,35 +1068,38 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 .text(locationText);
         }
 
-        // Stats top line (right side, aligned with title) - metrics like distance/elevation
+        // Stats top line (right side, top-aligned with title)
         if (statsTopLine) {
             statBarGroup.append("text")
                 .attr("x", statsX)
                 .attr("y", titleY)
                 .attr("text-anchor", "end")
+                .attr("dominant-baseline", "hanging")
                 .attr("font-family", "system-ui, sans-serif")
                 .attr("font-size", `${detailFontSize}px`)
                 .attr("fill", colors.statsFill)
                 .text(statsTopLine);
         }
 
-        // Stats bottom line (right side, aligned with location) - date
+        // Stats bottom line (right side, same gap from stats top line as location from title)
         if (statsBottomLine) {
             statBarGroup.append("text")
                 .attr("x", statsX)
-                .attr("y", secondLineY)
+                .attr("y", titleY + detailFontSize + lineGap)
                 .attr("text-anchor", "end")
+                .attr("dominant-baseline", "hanging")
                 .attr("font-family", "system-ui, sans-serif")
                 .attr("font-size", `${detailFontSize}px`)
                 .attr("fill", colors.statsFill)
                 .text(statsBottomLine);
         }
 
-        // Flag/image (far right, vertically centered)
+        // Flag/image (far right, vertically centered within stat bar area only)
         if (imageUrl) {
             const flagX = width - posterPadding - flagWidth;
-            const flagCenterY = statBarTop + titleAreaHeight / 2;
-            const flagY = flagCenterY - flagHeight / 2;
+            // Keep flag within the stat bar area (below the map border)
+            // statBarTop is the top of the stat bar area, titleAreaHeight is the height
+            const flagY = statBarTop + (titleAreaHeight - flagHeight) / 2;
 
             statBarGroup.append("image")
                 .attr("x", flagX)

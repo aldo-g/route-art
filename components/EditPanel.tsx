@@ -20,6 +20,8 @@ export interface RouteDefaults {
     distance: number;
     elevationGain: number;
     elevationLoss: number;
+    dateStart?: string;
+    dateEnd?: string;
 }
 
 export interface ImageOverride {
@@ -60,6 +62,7 @@ interface EditPanelProps {
     // Download props
     onExportSVG: () => void;
     onExportPDF: () => void;
+    onExportPNG: () => void;
 }
 
 const getLandmarkIcon = (type: Landmark['type']) => {
@@ -131,6 +134,7 @@ export default function EditPanel({
     onToggleDarkMode,
     onExportSVG,
     onExportPDF,
+    onExportPNG,
 }: EditPanelProps) {
     // Section open/closed state
     const [sectionsOpen, setSectionsOpen] = useState({
@@ -178,6 +182,41 @@ export default function EditPanel({
     const [dateEnd, setDateEnd] = useState(statsOverrides.dateEnd ?? '');
     const [isDateRange, setIsDateRange] = useState(!!statsOverrides.dateEnd);
 
+    // Helper to format ISO date to YYYY-MM-DD for date input
+    const formatDateForInput = (isoDate: string): string => {
+        try {
+            return new Date(isoDate).toISOString().split('T')[0];
+        } catch {
+            return '';
+        }
+    };
+
+    // Update form fields when statsDefaults loads
+    React.useEffect(() => {
+        if (statsDefaults) {
+            if (!statsOverrides.routeName && !routeName) {
+                setRouteName(statsDefaults.routeName);
+            }
+            if (!statsOverrides.distance && !distance) {
+                setDistance(statsDefaults.distance.toFixed(1));
+            }
+            if (!statsOverrides.elevationGain && !elevationGain) {
+                setElevationGain(Math.round(statsDefaults.elevationGain).toString());
+            }
+            if (!statsOverrides.elevationLoss && !elevationLoss) {
+                setElevationLoss(Math.round(statsDefaults.elevationLoss).toString());
+            }
+            // Auto-fill dates from Strava if available and not already set
+            if (statsDefaults.dateStart && !statsOverrides.dateStart && !dateStart) {
+                setDateStart(formatDateForInput(statsDefaults.dateStart));
+            }
+            if (statsDefaults.dateEnd && !statsOverrides.dateEnd && !dateEnd) {
+                setDateEnd(formatDateForInput(statsDefaults.dateEnd));
+                setIsDateRange(true);
+            }
+        }
+    }, [statsDefaults, statsOverrides, routeName, distance, elevationGain, elevationLoss, dateStart, dateEnd]);
+
     // Tip modal state
     const [showTipModal, setShowTipModal] = useState(false);
 
@@ -188,6 +227,11 @@ export default function EditPanel({
 
     const handleDownloadPDF = () => {
         onExportPDF();
+        setShowTipModal(true);
+    };
+
+    const handleDownloadPNG = () => {
+        onExportPNG();
         setShowTipModal(true);
     };
 
@@ -762,8 +806,15 @@ export default function EditPanel({
                 >
                     <div className="space-y-2">
                         <button
-                            onClick={handleDownloadSVG}
+                            onClick={handleDownloadPNG}
                             className="w-full flex items-center justify-center gap-2 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded hover:bg-neutral-800 transition-colors"
+                        >
+                            <Download className="w-4 h-4" />
+                            Download PNG
+                        </button>
+                        <button
+                            onClick={handleDownloadSVG}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 border border-neutral-300 text-neutral-900 text-sm font-medium rounded hover:bg-neutral-50 transition-colors"
                         >
                             <Download className="w-4 h-4" />
                             Download SVG
@@ -776,7 +827,7 @@ export default function EditPanel({
                             Download PDF
                         </button>
                         <p className="text-[10px] text-neutral-400 text-center">
-                            SVG recommended for printing
+                            PNG for sharing, SVG for printing
                         </p>
                     </div>
                 </CollapsibleSection>

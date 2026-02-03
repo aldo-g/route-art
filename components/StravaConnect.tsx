@@ -12,6 +12,7 @@ import {
     formatDuration,
     formatDate,
     activitiesToGeoJSON,
+    calculateElevationLoss,
 } from '@/lib/strava';
 
 interface StravaConnectProps {
@@ -146,35 +147,36 @@ export default function StravaConnect({ onDataLoaded }: StravaConnectProps) {
         setError(null);
 
         try {
-            // Fetch detailed polylines for selected activities
+            // Fetch detailed activity data for selected activities
             const selectedActivities = activities.filter((a) => selectedIds.has(a.id));
-            const detailedActivities: Array<{ polyline: string; name: string; date: string }> = [];
+            const detailedActivities: Array<{ polyline: string; name: string; date: string; distance: number; totalElevationGain: number; totalElevationLoss: number }> = [];
 
             for (const activity of selectedActivities) {
-                // First try the summary polyline from the list
-                let polyline = activity.map?.summary_polyline;
+                // Always fetch detailed activity to get splits for elevation loss
+                const response = await fetch(`/api/strava/activity/${activity.id}`, {
+                    headers: {
+                        Authorization: `Bearer ${tokens.access_token}`,
+                    },
+                });
 
-                // If we need the full polyline, fetch the activity details
-                if (!polyline) {
-                    const response = await fetch(`/api/strava/activity/${activity.id}`, {
-                        headers: {
-                            Authorization: `Bearer ${tokens.access_token}`,
-                        },
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`Failed to fetch activity: ${activity.name}`);
-                    }
-
-                    const detail: StravaActivityDetail = await response.json();
-                    polyline = detail.map?.polyline || detail.map?.summary_polyline;
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch activity: ${activity.name}`);
                 }
+
+                const detail: StravaActivityDetail = await response.json();
+                const polyline = detail.map?.polyline || detail.map?.summary_polyline || activity.map?.summary_polyline;
+
+                // Calculate elevation loss from splits_metric
+                const elevationLoss = calculateElevationLoss(detail.splits_metric);
 
                 if (polyline) {
                     detailedActivities.push({
                         polyline,
                         name: activity.name,
                         date: activity.start_date_local,
+                        distance: activity.distance,
+                        totalElevationGain: activity.total_elevation_gain,
+                        totalElevationLoss: elevationLoss,
                     });
                 }
             }

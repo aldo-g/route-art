@@ -24,10 +24,19 @@ export interface StravaActivity {
     moving_time: number; // seconds
     elapsed_time: number; // seconds
     total_elevation_gain: number; // meters
+    elev_high?: number; // meters - highest point
+    elev_low?: number; // meters - lowest point
     map: {
         summary_polyline: string;
         polyline?: string;
     };
+}
+
+export interface StravaSplit {
+    elevation_difference: number; // meters - can be negative for descent
+    distance: number;
+    elapsed_time: number;
+    moving_time: number;
 }
 
 export interface StravaActivityDetail extends StravaActivity {
@@ -35,6 +44,16 @@ export interface StravaActivityDetail extends StravaActivity {
         summary_polyline: string;
         polyline: string;
     };
+    splits_metric?: StravaSplit[]; // Lap/km splits with elevation data
+}
+
+// Calculate total elevation loss from splits_metric array
+export function calculateElevationLoss(splits: StravaSplit[] | undefined): number {
+    if (!splits || splits.length === 0) return 0;
+    return splits.reduce((total, split) => {
+        // Only sum negative elevation differences (descent)
+        return total + (split.elevation_difference < 0 ? Math.abs(split.elevation_difference) : 0);
+    }, 0);
 }
 
 export function decodePolyline(encoded: string): [number, number][] {
@@ -58,13 +77,30 @@ export function polylineToGeoJSON(
     };
 }
 
+export interface ActivityData {
+    polyline: string;
+    name: string;
+    date: string;
+    distance?: number; // meters
+    totalElevationGain?: number; // meters
+    totalElevationLoss?: number; // meters
+}
+
 export function activitiesToGeoJSON(
-    activities: Array<{ polyline: string; name: string; date: string }>,
+    activities: ActivityData[],
     customName?: string
 ): FeatureCollection {
     const features = activities.map(({ polyline: encoded, name, date }) =>
         polylineToGeoJSON(encoded, { name, date })
     );
+
+    // Calculate totals for Strava stats
+    const totalDistance = activities.reduce((sum, a) => sum + (a.distance || 0), 0);
+    const totalElevationGain = activities.reduce((sum, a) => sum + (a.totalElevationGain || 0), 0);
+    const totalElevationLoss = activities.reduce((sum, a) => sum + (a.totalElevationLoss || 0), 0);
+    const dates = activities.map((a) => a.date).sort();
+    const dateStart = dates[0];
+    const dateEnd = dates.length > 1 ? dates[dates.length - 1] : undefined;
 
     // If multiple activities, use MultiLineString to keep them as separate segments
     // This prevents drawing lines between unconnected activities
@@ -72,7 +108,6 @@ export function activitiesToGeoJSON(
         const lineCoordinates = features.map(
             (f) => f.geometry.coordinates
         );
-        const dates = activities.map((a) => a.date).sort();
         const dateRange = dates.length > 1
             ? `${dates[0]} - ${dates[dates.length - 1]}`
             : dates[0];
@@ -88,6 +123,11 @@ export function activitiesToGeoJSON(
                     properties: {
                         name,
                         dateRange,
+                        stravaDistance: totalDistance,
+                        stravaElevationGain: totalElevationGain,
+                        stravaElevationLoss: totalElevationLoss || undefined,
+                        stravaDateStart: dateStart,
+                        stravaDateEnd: dateEnd,
                     },
                     geometry: {
                         type: 'MultiLineString',
@@ -98,9 +138,19 @@ export function activitiesToGeoJSON(
         };
     }
 
+    // Single activity - add Strava stats to the feature properties
+    const singleFeature = features[0];
+    singleFeature.properties = {
+        ...singleFeature.properties,
+        stravaDistance: totalDistance,
+        stravaElevationGain: totalElevationGain,
+        stravaElevationLoss: totalElevationLoss || undefined,
+        stravaDateStart: dateStart,
+    };
+
     return {
         type: 'FeatureCollection',
-        features,
+        features: [singleFeature],
     };
 }
 

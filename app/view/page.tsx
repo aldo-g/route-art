@@ -313,6 +313,10 @@ export default function ViewPage() {
         canvasRef.current?.exportPDF(fileName);
     };
 
+    const handleExportPNG = () => {
+        canvasRef.current?.exportPNG(fileName);
+    };
+
     const handleBack = () => {
         sessionStorage.removeItem('routeArtData');
         sessionStorage.removeItem('routeArtFileName');
@@ -409,6 +413,7 @@ export default function ViewPage() {
                     onToggleDarkMode={setIsDarkMode}
                     onExportSVG={handleExportSVG}
                     onExportPDF={handleExportPDF}
+                    onExportPNG={handleExportPNG}
                 />
             </div>
         </main>
