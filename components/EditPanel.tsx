@@ -784,7 +784,7 @@ export default function EditPanel({
 
             </div>
 
-            {/* Download & Purchase */}
+            {/* Download */}
             <div className="p-3 border-t border-neutral-200 space-y-2">
                 <button
                     onClick={handleDownloadPNG}
@@ -792,12 +792,6 @@ export default function EditPanel({
                 >
                     <Download className="w-4 h-4" />
                     Download PNG
-                </button>
-                <button
-                    disabled
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-neutral-300 text-neutral-500 text-sm font-medium rounded-lg cursor-not-allowed"
-                >
-                    Purchase Print – Coming Soon
                 </button>
             </div>
 

@@ -6,8 +6,8 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import ArtCanvas, { ArtCanvasHandle, StatsOverrides, RouteDefaults, ImageOverride } from '@/components/ArtCanvas';
 import EditPanel from '@/components/EditPanel';
+import Header from '@/components/Header';
 import { Landmark } from '@/lib/landmarks';
-import { ArrowLeft } from 'lucide-react';
 
 export default function ViewPage() {
     const router = useRouter();
@@ -330,17 +330,7 @@ export default function ViewPage() {
 
     return (
         <main className="h-screen bg-neutral-100 text-neutral-900 flex flex-col font-sans overflow-hidden">
-            <header className="p-4 border-b border-neutral-200 bg-white flex items-center gap-4">
-                <button
-                    onClick={handleBack}
-                    className="flex items-center gap-2 text-neutral-500 hover:text-neutral-800 transition-colors text-sm"
-                >
-                    <ArrowLeft className="w-4 h-4" />
-                    New Route
-                </button>
-                <div className="h-4 w-px bg-neutral-200" />
-                <h1 className="text-lg font-bold tracking-tight">Contour Maps</h1>
-            </header>
+            <Header showBackButton onBack={handleBack} />
 
             <div className="flex-1 flex min-h-0 overflow-hidden">
                 <div className={`flex-1 flex items-center justify-center min-h-0 ${isPortrait ? 'py-2 px-4' : 'p-6'}`}>

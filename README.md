@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Contour Map Studio
 
-## Getting Started
+Route Art (Contour Map Studio) turns your runs, rides, and hikes into minimalist contour-map posters. Upload a GPX or pull recent Strava activities, explore auto-detected landmarks, tweak styling (dark mode, water shading, markers, orientation), edit route stats, and export a high-resolution PNG that’s ready to print or share.
 
-First, run the development server:
+## Features
+- GPX upload and Strava OAuth import (activity selector flow).
+- Auto-detected landmarks with add/remove, custom landmarks, and selection tools.
+- Design controls: dark/light, water shading, start/end markers, portrait/landscape aspect ratios.
+- Editable stats (route name, location, distance, gain/loss, dates) with overrides.
+- Optional flag/custom image badge; PNG export with a tip modal.
+- Session persistence so in-progress edits survive refreshes.
 
-```bash
+## Tech Stack
+- Next.js 16 (App Router) + React 19
+- Tailwind CSS 4
+- Map/geo helpers: `@turf/turf`, `@mapbox/polyline`, `osmtogeojson`
+- Rendering/export: `jspdf`, `pngjs`
+
+## Prerequisites
+- Node 18.18+ (or 20+) and npm.
+- Mapbox access token and a Strava API app.
+
+## Environment Variables
+Create `.env.local` with:
+```
+MAPBOX_TOKEN=pk_your_token
+STRAVA_CLIENT_ID=xxxx
+STRAVA_CLIENT_SECRET=xxxx
+NEXT_PUBLIC_STRAVA_CLIENT_ID=xxxx
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+Update `NEXT_PUBLIC_APP_URL` to your deployed URL (e.g., `https://yourdomain.com`) before production.
+
+### Strava OAuth Redirects
+Add both of these to your Strava app settings:
+- `http://localhost:3000/api/strava/auth`
+- `https://yourdomain.com/api/strava/auth` (or your Vercel domain)
+
+## Run Locally
+```
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+Visit http://localhost:3000 and upload a GPX or connect Strava, then tweak design and download PNG.
+
+## Build & Start (production)
+```
+npm run build
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Lint
+```
+npm run lint
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy to Vercel
+1) Push the repo to GitHub/GitLab/Bitbucket.  
+2) In Vercel: New Project → import repo; framework auto-detects Next.js.  
+3) Build command: `npm run build`. Output: default.  
+4) Add env vars listed above for Production + Preview.  
+5) Deploy, then set custom domain and update `NEXT_PUBLIC_APP_URL` accordingly.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project Structure (key paths)
+- `app/layout.tsx` — metadata, fonts, global shell.
+- `app/page.tsx` — upload/landing flow.
+- `app/view/page.tsx` — editor + canvas view.
+- `components/ArtCanvas.tsx` — drawing/export logic.
+- `components/EditPanel.tsx` — controls for stats, landmarks, design, download.
+- `components/UploadZone.tsx`, `components/StravaConnect.tsx` — data ingestion.
+- `lib/strava.ts` — Strava client helpers.
+- `public/contour-logo.png` — brand logo used for favicon/tab icon.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Usage Tips
+- Large GPX files: simplify in your GPS app first for smoother rendering.
+- If Strava auth fails, confirm redirect URLs and that `NEXT_PUBLIC_APP_URL` matches the deployed domain.
+- Exports inherit the current design/dark-mode settings—set them before hitting “Download PNG”.
