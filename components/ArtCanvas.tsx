@@ -800,17 +800,35 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 const labelElevation = landmark.elevation ? `(${Math.round(landmark.elevation)}m)` : '';
 
                 // Determine label position based on which side of route
-                const labelOnLeft = isLeftOfRoute(x, y);
-                const textAnchor = labelOnLeft ? "end" : "start";
-                const labelBaseX = labelOnLeft ? x - 8 : x + 8;
-                const labelBaseY = y + 3;
+                let labelOnLeft = isLeftOfRoute(x, y);
                 const lineHeight = 11;
                 const charWidth = 5.5;
+                const labelOffset = 8;
+                const edgePadding = 5;
 
-                // Calculate available space to the edge
+                // Estimate the width of the longest line (name + elevation)
+                const fullLabelText = labelElevation ? `${labelName} ${labelElevation}` : labelName;
+                const estimatedLabelWidth = fullLabelText.length * charWidth;
+
+                // Calculate available space on each side
+                const spaceOnLeft = x - labelOffset - clipBounds.minX - edgePadding;
+                const spaceOnRight = clipBounds.maxX - x - labelOffset - edgePadding;
+
+                // If label would overflow on the preferred side, flip to the other side if there's more room
+                if (labelOnLeft && estimatedLabelWidth > spaceOnLeft && spaceOnRight > spaceOnLeft) {
+                    labelOnLeft = false;
+                } else if (!labelOnLeft && estimatedLabelWidth > spaceOnRight && spaceOnLeft > spaceOnRight) {
+                    labelOnLeft = true;
+                }
+
+                const textAnchor = labelOnLeft ? "end" : "start";
+                const labelBaseX = labelOnLeft ? x - labelOffset : x + labelOffset;
+                const labelBaseY = y + 3;
+
+                // Calculate available space to the edge (after potential flip)
                 const availableWidth = labelOnLeft
-                    ? x - 8 - clipBounds.minX - 5
-                    : clipBounds.maxX - x - 8 - 5;
+                    ? x - labelOffset - clipBounds.minX - edgePadding
+                    : clipBounds.maxX - x - labelOffset - edgePadding;
 
                 // Split name into words and wrap if needed
                 const words = labelName.split(' ');

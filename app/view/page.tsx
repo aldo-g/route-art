@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import ArtCanvas, { ArtCanvasHandle, StatsOverrides, RouteDefaults, ImageOverride } from '@/components/ArtCanvas';
 import EditPanel from '@/components/EditPanel';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import { Landmark } from '@/lib/landmarks';
 
 export default function ViewPage() {
@@ -396,6 +397,7 @@ export default function ViewPage() {
                     onExportPNG={handleExportPNG}
                 />
             </div>
+            <Footer />
         </main>
     );
 }

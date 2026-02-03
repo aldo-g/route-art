@@ -54,7 +54,7 @@ export default function UploadZone({ onDataLoaded }: UploadZoneProps) {
         <div
             {...getRootProps()}
             className={`
-        border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors
+        border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
         ${isDragActive ? 'border-neutral-800 bg-neutral-50' : 'border-neutral-200 hover:border-neutral-400'}
       `}
         >

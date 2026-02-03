@@ -43,7 +43,7 @@ export default function ImageCarousel() {
   };
 
   return (
-    <div className="relative w-full max-w-lg mx-auto">
+    <div className="relative w-full max-w-md mx-auto">
       <div className="relative aspect-[3/4] overflow-hidden">
         {images.map((image, index) => (
           <div

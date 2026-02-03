@@ -232,7 +232,7 @@ export default function StravaConnect({ onDataLoaded }: StravaConnectProps) {
 
     return (
         <>
-            <div className="border-2 border-dashed rounded-lg p-12 text-center transition-colors border-neutral-200 hover:border-neutral-400">
+            <div className="border-2 border-dashed rounded-lg p-8 text-center transition-colors border-neutral-200 hover:border-neutral-400">
                 <div className="flex flex-col items-center gap-4 text-neutral-500">
                     <svg
                         className="w-8 h-8 opacity-50"
