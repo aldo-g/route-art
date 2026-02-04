@@ -9,7 +9,7 @@ interface LoadingOverlayProps {
   isVisible: boolean;
 }
 
-export default function LoadingOverlay({ message, isVisible }: LoadingOverlayProps) {
+export default function LoadingOverlay({ message = 'Loading...', isVisible }: LoadingOverlayProps) {
   if (!isVisible) return null;
 
   // Check if we have a detailed status (e.g., "LANDMARKS: Querying Overpass API...")
