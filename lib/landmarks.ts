@@ -16,7 +16,7 @@ export interface Landmark {
 export const fetchLandmarks = async (
     bbox: { minLng: number; minLat: number; maxLng: number; maxLat: number },
     route?: Feature<LineString | MultiLineString>,
-    options?: { maxDistance?: number; limit?: number }
+    options?: { maxDistance?: number; limit?: number; onProgress?: (status: string) => void }
 ): Promise<Landmark[]> => {
     const response = await fetch('/api/landmarks', {
         method: 'POST',
@@ -30,10 +30,43 @@ export const fetchLandmarks = async (
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to fetch landmarks');
+        throw new Error('Failed to fetch landmarks');
     }
 
-    const data = await response.json();
-    return data.landmarks;
+    const reader = response.body?.getReader();
+    if (!reader) {
+        throw new Error('Failed to start stream reader');
+    }
+
+    const decoder = new TextEncoder();
+    const textDecoder = new TextDecoder();
+    let buffer = '';
+    let finalLandmarks: Landmark[] = [];
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += textDecoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+                const data = JSON.parse(line);
+                if (data.error) throw new Error(data.error);
+                if (data.status && options?.onProgress) {
+                    options.onProgress(data.status);
+                }
+                if (data.landmarks) {
+                    finalLandmarks = data.landmarks;
+                }
+            } catch (e) {
+                console.error('Error parsing stream chunk:', e);
+            }
+        }
+    }
+
+    return finalLandmarks;
 };

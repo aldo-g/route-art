@@ -26,96 +26,116 @@ export interface Landmark {
 }
 
 export async function POST(request: NextRequest) {
-    try {
-        const { bbox, route, maxDistance = 2, limit = 15 }: LandmarkRequest = await request.json();
+    const encoder = new TextEncoder();
 
-        // Overpass QL query - focus on peaks and notable features
-        const query = `
-            [out:json][timeout:25];
-            (
-                node["natural"="peak"](${bbox.minLat},${bbox.minLng},${bbox.maxLat},${bbox.maxLng});
-                node["natural"="volcano"](${bbox.minLat},${bbox.minLng},${bbox.maxLat},${bbox.maxLng});
-                node["waterway"="waterfall"](${bbox.minLat},${bbox.minLng},${bbox.maxLat},${bbox.maxLng});
-                node["natural"="saddle"](${bbox.minLat},${bbox.minLng},${bbox.maxLat},${bbox.maxLng});
-            );
-            out body;
-        `;
-
-        const response = await fetch('https://overpass-api.de/api/interpreter', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `data=${encodeURIComponent(query)}`
-        });
-
-        if (!response.ok) {
-            throw new Error(`Overpass API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        let landmarks: Landmark[] = data.elements
-            .map((el: any) => ({
-                id: el.id,
-                type: el.tags.natural || (el.tags.waterway === 'waterfall' ? 'waterfall' : 'peak'),
-                name: el.tags.name || null,
-                lat: el.lat,
-                lng: el.lon,
-                elevation: el.tags.ele ? parseFloat(el.tags.ele) : undefined
-            }))
-            .filter((l: Landmark) => l.name); // Only named landmarks
-
-        // Filter by distance to route if route provided
-        if (route) {
-            // For MultiLineString, find the minimum distance to any segment
-            const getDistanceToRoute = (point: ReturnType<typeof turf.point>, routeFeature: Feature<LineString | MultiLineString>): number => {
-                if (routeFeature.geometry.type === 'MultiLineString') {
-                    // Check distance to each line segment and return the minimum
-                    const distances = routeFeature.geometry.coordinates.map(coords => {
-                        const line = turf.lineString(coords);
-                        return turf.pointToLineDistance(point, line, { units: 'kilometers' });
-                    });
-                    return Math.min(...distances);
-                }
-                return turf.pointToLineDistance(point, routeFeature as Feature<LineString>, { units: 'kilometers' });
+    const stream = new ReadableStream({
+        async start(controller) {
+            const send = (data: any) => {
+                controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'));
             };
 
-            landmarks = landmarks
-                .map(landmark => {
-                    const point = turf.point([landmark.lng, landmark.lat]);
-                    const distance = getDistanceToRoute(point, route);
-                    return { ...landmark, distanceToRoute: distance };
-                })
-                .filter(l => l.distanceToRoute !== undefined && l.distanceToRoute <= maxDistance)
-                .sort((a, b) => {
-                    // Prioritize: closer to route, then higher elevation
-                    const distDiff = (a.distanceToRoute || 0) - (b.distanceToRoute || 0);
-                    if (Math.abs(distDiff) > 0.5) return distDiff; // If distance differs by >500m, use distance
-                    // Otherwise sort by elevation
-                    if (a.elevation && b.elevation) return b.elevation - a.elevation;
-                    if (a.elevation) return -1;
-                    if (b.elevation) return 1;
-                    return 0;
+            try {
+                const { bbox, route, maxDistance = 2, limit = 15 }: LandmarkRequest = await request.json();
+
+                send({ status: 'Querying OpenStreetMap...' });
+
+                // Overpass QL query - focus on peaks and notable features
+                const query = `
+                    [out:json][timeout:25];
+                    (
+                        node["natural"="peak"](${bbox.minLat},${bbox.minLng},${bbox.maxLat},${bbox.maxLng});
+                        node["natural"="volcano"](${bbox.minLat},${bbox.minLng},${bbox.maxLat},${bbox.maxLng});
+                        node["waterway"="waterfall"](${bbox.minLat},${bbox.minLng},${bbox.maxLat},${bbox.maxLng});
+                        node["natural"="saddle"](${bbox.minLat},${bbox.minLng},${bbox.maxLat},${bbox.maxLng});
+                    );
+                    out body;
+                `;
+
+                const response = await fetch('https://overpass-api.de/api/interpreter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `data=${encodeURIComponent(query)}`
                 });
-        } else {
-            // No route, just sort by elevation
-            landmarks.sort((a, b) => {
-                if (a.elevation && b.elevation) return b.elevation - a.elevation;
-                if (a.elevation) return -1;
-                if (b.elevation) return 1;
-                return 0;
-            });
+
+                if (!response.ok) {
+                    throw new Error(`Overpass API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const totalElements = data.elements?.length || 0;
+                send({ status: `Processing ${totalElements} landmarks...` });
+
+                let landmarks: Landmark[] = data.elements
+                    .map((el: any) => ({
+                        id: el.id,
+                        type: el.tags.natural || (el.tags.waterway === 'waterfall' ? 'waterfall' : 'peak'),
+                        name: el.tags.name || null,
+                        lat: el.lat,
+                        lng: el.lon,
+                        elevation: el.tags.ele ? parseFloat(el.tags.ele) : undefined
+                    }))
+                    .filter((l: Landmark) => l.name); // Only named landmarks
+
+                send({ status: `Filtering ${landmarks.length} named landmarks...` });
+
+                // Filter by distance to route if route provided
+                if (route) {
+                    send({ status: `Calculating distances to route...` });
+                    // For MultiLineString, find the minimum distance to any segment
+                    const getDistanceToRoute = (point: ReturnType<typeof turf.point>, routeFeature: Feature<LineString | MultiLineString>): number => {
+                        if (routeFeature.geometry.type === 'MultiLineString') {
+                            // Check distance to each line segment and return the minimum
+                            const distances = routeFeature.geometry.coordinates.map(coords => {
+                                const line = turf.lineString(coords);
+                                return turf.pointToLineDistance(point, line, { units: 'kilometers' });
+                            });
+                            return Math.min(...distances);
+                        }
+                        return turf.pointToLineDistance(point, routeFeature as Feature<LineString>, { units: 'kilometers' });
+                    };
+
+                    landmarks = landmarks
+                        .map(landmark => {
+                            const point = turf.point([landmark.lng, landmark.lat]);
+                            const distance = getDistanceToRoute(point, route);
+                            return { ...landmark, distanceToRoute: distance };
+                        })
+                        .filter(l => l.distanceToRoute !== undefined && l.distanceToRoute <= maxDistance)
+                        .sort((a, b) => {
+                            // Prioritize: closer to route, then higher elevation
+                            const distDiff = (a.distanceToRoute || 0) - (b.distanceToRoute || 0);
+                            if (Math.abs(distDiff) > 0.5) return distDiff; // If distance differs by >500m, use distance
+                            // Otherwise sort by elevation
+                            if (a.elevation && b.elevation) return b.elevation - a.elevation;
+                            if (a.elevation) return -1;
+                            if (b.elevation) return 1;
+                            return 0;
+                        });
+                } else {
+                    // No route, just sort by elevation
+                    landmarks.sort((a, b) => {
+                        if (a.elevation && b.elevation) return b.elevation - a.elevation;
+                        if (a.elevation) return -1;
+                        if (b.elevation) return 1;
+                        return 0;
+                    });
+                }
+
+                // Limit results
+                landmarks = landmarks.slice(0, limit);
+
+                send({ status: 'Done', landmarks });
+                controller.close();
+
+            } catch (error) {
+                console.error('Landmarks API error:', error);
+                send({ error: error instanceof Error ? error.message : 'Failed to fetch landmarks' });
+                controller.close();
+            }
         }
+    });
 
-        // Limit results
-        landmarks = landmarks.slice(0, limit);
-
-        return NextResponse.json({ landmarks });
-
-    } catch (error) {
-        console.error('Landmarks API error:', error);
-        return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Failed to fetch landmarks', landmarks: [] },
-            { status: 500 }
-        );
-    }
+    return new Response(stream, {
+        headers: { 'Content-Type': 'application/x-ndjson' }
+    });
 }

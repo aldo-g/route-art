@@ -6,6 +6,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import ArtCanvas, { ArtCanvasHandle, StatsOverrides, RouteDefaults, ImageOverride } from '@/components/ArtCanvas';
 import EditPanel from '@/components/EditPanel';
+import LoadingOverlay from '@/components/LoadingOverlay';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { Landmark } from '@/lib/landmarks';
@@ -39,6 +40,11 @@ export default function ViewPage() {
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [showWater, setShowWater] = useState(true);
     const [showMarkers, setShowMarkers] = useState(true);
+    const [showShading, setShowShading] = useState(false);
+    const [shadingIntensity, setShadingIntensity] = useState(0.5);
+
+    // Unified loading state
+    const [loadingStatus, setLoadingStatus] = useState<string | null>("Processing route...");
 
     // Click-to-place landmark state
     const [isPlacingLandmark, setIsPlacingLandmark] = useState(false);
@@ -84,6 +90,19 @@ export default function ViewPage() {
                 if (storedShowWater !== null) {
                     setShowWater(storedShowWater === 'true');
                 }
+
+                const storedShowShading = sessionStorage.getItem('routeArtShowShading');
+                if (storedShowShading !== null) {
+                    setShowShading(storedShowShading === 'true');
+                }
+
+                const storedShadingIntensity = sessionStorage.getItem('routeArtShadingIntensity');
+                if (storedShadingIntensity !== null) {
+                    setShadingIntensity(parseFloat(storedShadingIntensity));
+                }
+
+                // Finish initial load status
+                setLoadingStatus(null);
 
             } catch {
                 console.error('Failed to parse stored route data');
@@ -306,6 +325,24 @@ export default function ViewPage() {
         }
     };
 
+    const handleToggleShading = (value: boolean) => {
+        setShowShading(value);
+        try {
+            sessionStorage.setItem('routeArtShowShading', value ? 'true' : 'false');
+        } catch {
+            console.warn('Failed to save design preference to sessionStorage');
+        }
+    };
+
+    const handleShadingIntensityChange = (value: number) => {
+        setShadingIntensity(value);
+        try {
+            sessionStorage.setItem('routeArtShadingIntensity', value.toString());
+        } catch {
+            console.warn('Failed to save design preference to sessionStorage');
+        }
+    };
+
     const handleExportPNG = () => {
         canvasRef.current?.exportPNG(fileName);
     };
@@ -318,6 +355,8 @@ export default function ViewPage() {
         sessionStorage.removeItem('routeArtImageOverride');
         sessionStorage.removeItem('routeArtCustomLandmarks');
         sessionStorage.removeItem('routeArtShowWater');
+        sessionStorage.removeItem('routeArtShowShading');
+        sessionStorage.removeItem('routeArtShadingIntensity');
         router.push('/');
     };
 
@@ -360,12 +399,19 @@ export default function ViewPage() {
                             isDarkMode={isDarkMode}
                             showWater={showWater}
                             showMarkers={showMarkers}
+                            showShading={showShading}
+                            shadingIntensity={shadingIntensity}
                             onLandmarksLoaded={handleLandmarksLoaded}
                             onVisibleLandmarksCalculated={handleVisibleLandmarksCalculated}
                             onInBoundsLandmarksCalculated={handleInBoundsLandmarksCalculated}
                             onDefaultsCalculated={handleDefaultsCalculated}
                             onCountryCodeDetected={handleCountryCodeDetected}
                             onMapClick={handleMapClick}
+                            onLoadingStatusChange={setLoadingStatus}
+                        />
+                        <LoadingOverlay
+                            isVisible={!!loadingStatus}
+                            message={loadingStatus ?? ""}
                         />
                     </div>
                 </div>
@@ -394,6 +440,10 @@ export default function ViewPage() {
                     onToggleOrientation={setIsPortrait}
                     isDarkMode={isDarkMode}
                     onToggleDarkMode={setIsDarkMode}
+                    showShading={showShading}
+                    onToggleShading={handleToggleShading}
+                    shadingIntensity={shadingIntensity}
+                    onShadingIntensityChange={handleShadingIntensityChange}
                     onExportPNG={handleExportPNG}
                 />
             </div>

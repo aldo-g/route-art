@@ -45,12 +45,15 @@ interface ArtCanvasProps {
     isDarkMode?: boolean;
     showWater?: boolean;
     showMarkers?: boolean;
+    showShading?: boolean;
+    shadingIntensity?: number;
     onLandmarksLoaded?: (landmarks: Landmark[]) => void;
     onVisibleLandmarksCalculated?: (visibleIds: number[]) => void;
     onInBoundsLandmarksCalculated?: (inBoundsIds: number[]) => void;
     onDefaultsCalculated?: (defaults: RouteDefaults) => void;
     onCountryCodeDetected?: (countryCode: string | null) => void;
     onMapClick?: (lat: number, lng: number) => void;
+    onLoadingStatusChange?: (status: string | null) => void;
 }
 
 export interface ArtCanvasHandle {
@@ -59,7 +62,7 @@ export interface ArtCanvasHandle {
     exportPNG: (fileName: string) => Promise<void>;
 }
 
-const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, showWater = true, showMarkers = true, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick }, ref) => {
+const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, showWater = true, showMarkers = true, showShading = false, shadingIntensity = 0.5, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick, onLoadingStatusChange }, ref) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const projectionRef = useRef<d3.GeoProjection | null>(null);
@@ -81,8 +84,15 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 const { width, height } = entry.contentRect;
-                if (width > 0 && height > 0) {
-                    setContainerSize({ width, height });
+                // Round to avoid sub-pixel jitter which can trigger unnecessary renders
+                const roundedWidth = Math.floor(width);
+                const roundedHeight = Math.floor(height);
+
+                if (roundedWidth > 0 && roundedHeight > 0) {
+                    setContainerSize(prev => {
+                        if (prev?.width === roundedWidth && prev?.height === roundedHeight) return prev;
+                        return { width: roundedWidth, height: roundedHeight };
+                    });
                 }
             }
         });
@@ -122,14 +132,166 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const bottomRight = (projection.invert as (coords: [number, number]) => [number, number] | null)([width, height]);
 
         if (topLeft && bottomRight) {
-            setViewBbox({
+            const nextBbox = {
                 minLng: topLeft[0],
                 maxLat: topLeft[1],
                 maxLng: bottomRight[0],
                 minLat: bottomRight[1]
+            };
+
+            setViewBbox(prev => {
+                if (!prev) return nextBbox;
+                if (prev.minLng === nextBbox.minLng &&
+                    prev.maxLat === nextBbox.maxLat &&
+                    prev.maxLng === nextBbox.maxLng &&
+                    prev.minLat === nextBbox.minLat) {
+                    return prev;
+                }
+                return nextBbox;
             });
         }
     }, [processed, containerSize]);
+
+    // Generate hillshade relief image
+    const hillshadeImage = React.useMemo(() => {
+        if (!elevationData || !showShading) return null;
+
+        const { w, h } = gridSize;
+
+        // --- 1. Aggressive Smoothing (5x5 Gaussian-ish) ---
+        const smoothData = new Float32Array(elevationData.length);
+        const radius = 2; // 5x5 window
+
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                let sum = 0;
+                let weightSum = 0;
+                for (let ky = -radius; ky <= radius; ky++) {
+                    for (let kx = -radius; kx <= radius; kx++) {
+                        const nx = x + kx;
+                        const ny = y + ky;
+                        if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                            // Weight based on distance (pseudo-gaussian)
+                            const weight = 1 / (1 + Math.sqrt(kx * kx + ky * ky));
+                            sum += elevationData[ny * w + nx] * weight;
+                            weightSum += weight;
+                        }
+                    }
+                }
+                smoothData[y * w + x] = sum / weightSum;
+            }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+
+        const imgData = ctx.createImageData(w, h);
+        const data = imgData.data;
+
+        // Lighting parameters
+        const primaryAz = (315 * Math.PI) / 180;
+        const secondaryAz = (45 * Math.PI) / 180;
+        const zenRad = (45 * Math.PI) / 180;
+
+        // Light vectors
+        const l1x = Math.cos(primaryAz) * Math.sin(zenRad);
+        const l1y = Math.sin(primaryAz) * Math.sin(zenRad);
+        const l1z = Math.cos(zenRad);
+
+        const l2x = Math.cos(secondaryAz) * Math.sin(zenRad);
+        const l2y = Math.sin(secondaryAz) * Math.sin(zenRad);
+        const l2z = Math.cos(zenRad);
+
+        // Subtly adjust intensity based on the slider
+        const zFactor = 0.005 + (shadingIntensity * 0.04);
+        const contrast = 1.2 + (shadingIntensity * 0.5);
+
+        // Find max/min elevation for hypsometric hints
+        let maxE = -Infinity, minE = Infinity;
+        for (let i = 0; i < smoothData.length; i++) {
+            if (smoothData[i] > maxE) maxE = smoothData[i];
+            if (smoothData[i] < minE) minE = smoothData[i];
+        }
+        const eRange = maxE - minE || 1;
+
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                const z0 = smoothData[(y - 1) * w + (x - 1)];
+                const z1 = smoothData[(y - 1) * w + x];
+                const z2 = smoothData[(y - 1) * w + (x + 1)];
+                const z3 = smoothData[y * w + (x - 1)];
+                const z5 = smoothData[y * w + (x + 1)];
+                const z6 = smoothData[(y + 1) * w + (x - 1)];
+                const z7 = smoothData[(y + 1) * w + x];
+                const z8 = smoothData[(y + 1) * w + (x + 1)];
+
+                const dzdx = ((z2 + 2 * z5 + z8) - (z0 + 2 * z3 + z6)) / 8;
+                const dzdy = ((z6 + 2 * z7 + z8) - (z0 + 2 * z1 + z2)) / 8;
+
+                // Surface normal
+                const nx = -dzdx * zFactor;
+                const ny = -dzdy * zFactor;
+                const nz = 1.0;
+
+                const mag = Math.sqrt(nx * nx + ny * ny + nz * nz);
+                const snx = nx / mag;
+                const sny = ny / mag;
+                const snz = nz / mag;
+
+                // 1. Multidirection shading (primary + subtle secondary)
+                const dot1 = snx * l1x + sny * l1y + snz * l1z;
+                const dot2 = snx * l2x + sny * l2y + snz * l2z;
+                const combinedShade = (dot1 * 0.7) + (dot2 * 0.3);
+
+                // 2. Slopeshade (darken steep areas)
+                const gradientMag = Math.sqrt(dzdx * dzdx + dzdy * dzdy);
+                const slopeFactor = Math.min(1.0, (gradientMag * zFactor * 5));
+
+                // --- NEW: Flatland Thresholding ---
+                const deadzone = 0.002;
+                const slopeTransparency = Math.min(1.0, Math.max(0, (gradientMag - deadzone) / deadzone));
+
+                const neutral = Math.cos(zenRad);
+                const diff = (combinedShade - neutral) * contrast;
+
+                // 3. Hypsometric hint (Soft Fog)
+                const elevation = smoothData[y * w + x];
+                const elevationFactor = (elevation - minE) / eRange;
+                const depthFactor = 0.6 + (1 - elevationFactor) * 0.4;
+
+                const idx = (y * w + x) * 4;
+
+                // 4. Micro-noise
+                const noise = (Math.random() - 0.5) * 4;
+
+                if (diff < 0) {
+                    // Shadows + Slopeshade (Indigo Ink: 30, 27, 75)
+                    const shadowAlpha = Math.abs(diff) * 160 * shadingIntensity * depthFactor;
+                    const slopeAlpha = slopeFactor * 120 * shadingIntensity;
+                    const finalAlpha = Math.max(shadowAlpha, slopeAlpha) * slopeTransparency;
+
+                    data[idx] = 30;
+                    data[idx + 1] = 27;
+                    data[idx + 2] = 75;
+                    data[idx + 3] = Math.min(220, finalAlpha + noise);
+                } else {
+                    // Highlights (Cream Ink: 254, 243, 199)
+                    const highlightAlpha = diff * 100 * shadingIntensity * (0.6 + elevationFactor * 0.6) * slopeTransparency;
+
+                    data[idx] = 254;
+                    data[idx + 1] = 243;
+                    data[idx + 2] = 199;
+                    data[idx + 3] = Math.min(160, highlightAlpha + noise);
+                }
+            }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+        return canvas.toDataURL();
+    }, [elevationData, showShading, gridSize, shadingIntensity]);
 
     useEffect(() => {
         if (!viewBbox) return;
@@ -151,6 +313,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
         const fetchRealTerrain = async () => {
             setIsLoadingElevation(true);
+            onLoadingStatusChange?.("Drawing contours...");
             setElevationError(null);
             try {
                 const result = await fetchMapboxTerrain(viewBbox, gridSize.w, gridSize.h);
@@ -167,6 +330,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 setElevationError(errorMessage);
             } finally {
                 setIsLoadingElevation(false);
+                onLoadingStatusChange?.(null);
             }
         };
 
@@ -195,10 +359,14 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         }
 
         const fetchLandmarkData = async () => {
+            onLoadingStatusChange?.("Fetching landmarks...");
             try {
                 const result = await fetchLandmarks(viewBbox, processed.feature, {
                     maxDistance: 15, // 15km from route for better coverage on larger maps
-                    limit: 50
+                    limit: 50,
+                    onProgress: (status) => {
+                        onLoadingStatusChange?.(`LANDMARKS: ${status}`);
+                    }
                 });
                 setAllLandmarks(result);
                 onLandmarksLoaded?.(result);
@@ -210,6 +378,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 }
             } catch (err) {
                 console.error("Failed to fetch landmarks", err);
+            } finally {
+                onLoadingStatusChange?.(null);
             }
         };
 
@@ -556,6 +726,29 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("rx", 2)
             .attr("ry", 2);
 
+        // Add Hillshade layer if available
+        if (hillshadeImage && showShading) {
+            const topLeft = projection([viewBbox?.minLng || 0, viewBbox?.maxLat || 0]);
+            const bottomRight = projection([viewBbox?.maxLng || 0, viewBbox?.minLat || 0]);
+
+            if (topLeft && bottomRight) {
+                const imgW = bottomRight[0] - topLeft[0];
+                const imgH = bottomRight[1] - topLeft[1];
+
+                svg.append("image")
+                    .attr("xlink:href", hillshadeImage)
+                    .attr("x", topLeft[0])
+                    .attr("y", topLeft[1])
+                    .attr("width", imgW)
+                    .attr("height", imgH)
+                    .attr("preserveAspectRatio", "none")
+                    .attr("clip-path", `url(#${clipId})`)
+                    .style("opacity", 1.0)
+                    .style("image-rendering", "auto")
+                    .attr("class", "hillshade-layer");
+            }
+        }
+
         // Draw visible border around contour map area
         svg.append("rect")
             .attr("x", posterPadding)
@@ -571,13 +764,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const pathGenerator = d3.geoPath().projection(projection);
 
         // 2. Generate Background Terrain (Contours)
-        const resX = width / (gridSize.w - 1);
-        const resY = height / (gridSize.h - 1);
-
         let terrainValues: number[] | Float64Array;
         let usedGridSize = [gridSize.w, gridSize.h];
-        let scaleX = resX;
-        let scaleY = resY;
 
         if (elevationData) {
             terrainValues = elevationData;
@@ -587,8 +775,6 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             const terrHeight = Math.ceil(height / res);
             terrainValues = Array.from(generateTerrain(terrWidth, terrHeight, processed.stats.center[0] + processed.stats.center[1]));
             usedGridSize = [terrWidth, terrHeight];
-            scaleX = res;
-            scaleY = res;
         }
 
         const contours = d3.contours()
@@ -600,14 +786,21 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("class", "contours")
             .attr("clip-path", `url(#${clipId})`);
 
+        // Mapping function for grid coordinates to projection
+        const gridToProjection = d3.geoTransform({
+            point: function (x, y) {
+                if (!viewBbox) return;
+                const lng = viewBbox.minLng + (x / (usedGridSize[0] - 1)) * (viewBbox.maxLng - viewBbox.minLng);
+                const lat = viewBbox.maxLat - (y / (usedGridSize[1] - 1)) * (viewBbox.maxLat - viewBbox.minLat);
+                const p = projection([lng, lat]);
+                if (p) this.stream.point(p[0], p[1]);
+            }
+        });
+
         contourGroup.selectAll("path")
             .data(contours)
             .enter().append("path")
-            .attr("d", d3.geoPath(d3.geoTransform({
-                point: function (x, y) {
-                    this.stream.point(x * scaleX, y * scaleY);
-                }
-            })))
+            .attr("d", d3.geoPath(gridToProjection))
             .attr("fill", "none")
             .attr("stroke", colors.contourStroke)
             .attr("stroke-width", 1);
