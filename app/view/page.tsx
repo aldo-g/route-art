@@ -42,6 +42,7 @@ export default function ViewPage() {
     const [showMarkers, setShowMarkers] = useState(true);
     const [showShading, setShowShading] = useState(false);
     const [shadingIntensity, setShadingIntensity] = useState(0.5);
+    const [artMode, setArtMode] = useState(false);
 
     // Unified loading state
     const [loadingStatus, setLoadingStatus] = useState<string | null>("Processing route...");
@@ -99,6 +100,11 @@ export default function ViewPage() {
                 const storedShadingIntensity = sessionStorage.getItem('routeArtShadingIntensity');
                 if (storedShadingIntensity !== null) {
                     setShadingIntensity(parseFloat(storedShadingIntensity));
+                }
+
+                const storedArtMode = sessionStorage.getItem('routeArtArtMode');
+                if (storedArtMode !== null) {
+                    setArtMode(storedArtMode === 'true');
                 }
 
                 // Finish initial load status
@@ -343,6 +349,15 @@ export default function ViewPage() {
         }
     };
 
+    const handleToggleArtMode = (value: boolean) => {
+        setArtMode(value);
+        try {
+            sessionStorage.setItem('routeArtArtMode', value ? 'true' : 'false');
+        } catch {
+            console.warn('Failed to save design preference to sessionStorage');
+        }
+    };
+
     const handleExportPNG = () => {
         canvasRef.current?.exportPNG(fileName);
     };
@@ -357,6 +372,7 @@ export default function ViewPage() {
         sessionStorage.removeItem('routeArtShowWater');
         sessionStorage.removeItem('routeArtShowShading');
         sessionStorage.removeItem('routeArtShadingIntensity');
+        sessionStorage.removeItem('routeArtArtMode');
         router.push('/');
     };
 
@@ -401,6 +417,7 @@ export default function ViewPage() {
                             showMarkers={showMarkers}
                             showShading={showShading}
                             shadingIntensity={shadingIntensity}
+                            artMode={artMode}
                             onLandmarksLoaded={handleLandmarksLoaded}
                             onVisibleLandmarksCalculated={handleVisibleLandmarksCalculated}
                             onInBoundsLandmarksCalculated={handleInBoundsLandmarksCalculated}
@@ -444,6 +461,8 @@ export default function ViewPage() {
                     onToggleShading={handleToggleShading}
                     shadingIntensity={shadingIntensity}
                     onShadingIntensityChange={handleShadingIntensityChange}
+                    artMode={artMode}
+                    onToggleArtMode={handleToggleArtMode}
                     onExportPNG={handleExportPNG}
                 />
             </div>

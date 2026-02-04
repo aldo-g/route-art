@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { ChevronDown, ChevronRight, ChevronUp, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star, Download, Heart, X, Settings } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronUp, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star, Download, Heart, X, Settings, Palette } from 'lucide-react';
 import { Landmark } from '@/lib/landmarks';
 
 export interface StatsOverrides {
@@ -63,6 +63,9 @@ interface EditPanelProps {
     onToggleShading: (value: boolean) => void;
     shadingIntensity: number;
     onShadingIntensityChange: (value: number) => void;
+    // Art Mode props
+    artMode: boolean;
+    onToggleArtMode: (value: boolean) => void;
     // Download props
     onExportPNG: () => void;
 }
@@ -138,6 +141,9 @@ export default function EditPanel({
     onToggleShading,
     shadingIntensity,
     onShadingIntensityChange,
+    // Art Mode props
+    artMode,
+    onToggleArtMode,
     onExportPNG,
 }: EditPanelProps) {
     // Section open/closed state
@@ -806,6 +812,27 @@ export default function EditPanel({
                                     </button>
                                 </div>
                             </div>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Palette className="w-3.5 h-3.5 text-neutral-500" />
+                                    <span className="text-xs font-medium text-neutral-900">Art Mode</span>
+                                </div>
+                                <div className="relative inline-block w-8 h-4 align-middle select-none transition duration-200 ease-in">
+                                    <input
+                                        type="checkbox"
+                                        name="artMode"
+                                        id="artMode"
+                                        checked={artMode}
+                                        onChange={(e) => onToggleArtMode(e.target.checked)}
+                                        className="toggle-checkbox absolute block w-4 h-4 rounded-full bg-white border-2 appearance-none cursor-pointer peer checked:right-0 right-4 border-neutral-300 transition-all duration-200"
+                                    />
+                                    <label
+                                        htmlFor="artMode"
+                                        className={`toggle-label block overflow-hidden h-4 rounded-full cursor-pointer transition-colors duration-200 ${artMode ? 'bg-neutral-900' : 'bg-neutral-300'}`}
+                                    ></label>
+                                </div>
+                            </div>
+
                             <div className="flex items-center justify-between">
                                 <span className="text-xs text-neutral-700">Dark mode</span>
                                 <input

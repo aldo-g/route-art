@@ -47,6 +47,7 @@ interface ArtCanvasProps {
     showMarkers?: boolean;
     showShading?: boolean;
     shadingIntensity?: number;
+    artMode?: boolean;
     onLandmarksLoaded?: (landmarks: Landmark[]) => void;
     onVisibleLandmarksCalculated?: (visibleIds: number[]) => void;
     onInBoundsLandmarksCalculated?: (inBoundsIds: number[]) => void;
@@ -62,7 +63,7 @@ export interface ArtCanvasHandle {
     exportPNG: (fileName: string) => Promise<void>;
 }
 
-const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, showWater = true, showMarkers = true, showShading = false, shadingIntensity = 0.5, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick, onLoadingStatusChange }, ref) => {
+const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, showWater = true, showMarkers = true, showShading = false, shadingIntensity = 0.5, artMode = false, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick, onLoadingStatusChange }, ref) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const projectionRef = useRef<d3.GeoProjection | null>(null);
@@ -70,7 +71,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
     const [elevationData, setElevationData] = useState<number[] | null>(null);
     const [isLoadingElevation, setIsLoadingElevation] = useState(false);
     const [elevationError, setElevationError] = useState<string | null>(null);
-    const [gridSize] = useState({ w: 200, h: 200 });
+    const [gridSize] = useState({ w: 800, h: 800 });
     const [viewBbox, setViewBbox] = useState<{ minLng: number; minLat: number; maxLng: number; maxLat: number } | null>(null);
     const [allLandmarks, setAllLandmarks] = useState<Landmark[]>([]);
     const [countryCode, setCountryCode] = useState<string | null>(null);
@@ -160,7 +161,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
         // --- 1. Aggressive Smoothing (5x5 Gaussian-ish) ---
         const smoothData = new Float32Array(elevationData.length);
-        const radius = 2; // 5x5 window
+        // Use wider Gaussian blur for Art Mode to reduce noise ("pixelation")
+        const radius = artMode ? 4 : 2; // 5x5 (2) vs 9x9 (4) window
 
         for (let y = 0; y < h; y++) {
             for (let x = 0; x < w; x++) {
@@ -191,107 +193,198 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const imgData = ctx.createImageData(w, h);
         const data = imgData.data;
 
-        // Lighting parameters
-        const primaryAz = (315 * Math.PI) / 180;
-        const secondaryAz = (45 * Math.PI) / 180;
-        const zenRad = (45 * Math.PI) / 180;
+        if (artMode) {
+            // --- ART MODE (Poster Style) ---
+            const az = (315 * Math.PI) / 180;
+            const alt = (45 * Math.PI) / 180;
+            const lx = Math.cos(az) * Math.cos(alt);
+            const ly = Math.sin(az) * Math.cos(alt);
+            const lz = Math.sin(alt);
 
-        // Light vectors
-        const l1x = Math.cos(primaryAz) * Math.sin(zenRad);
-        const l1y = Math.sin(primaryAz) * Math.sin(zenRad);
-        const l1z = Math.cos(zenRad);
+            // Base Z-factor scaled by shading intensity
+            // Intensity 0 -> zFactor 0 (flat). Intensity 1 -> 0.015 (strong).
+            const zFactor = shadingIntensity * 0.015;
 
-        const l2x = Math.cos(secondaryAz) * Math.sin(zenRad);
-        const l2y = Math.sin(secondaryAz) * Math.sin(zenRad);
-        const l2z = Math.cos(zenRad);
+            for (let y = 1; y < h - 1; y++) {
+                for (let x = 1; x < w - 1; x++) {
+                    const idx = (y * w + x) * 4;
 
-        // Subtly adjust intensity based on the slider
-        const zFactor = 0.005 + (shadingIntensity * 0.04);
-        const contrast = 1.2 + (shadingIntensity * 0.5);
+                    const z0 = smoothData[(y - 1) * w + (x - 1)];
+                    const z1 = smoothData[(y - 1) * w + x];
+                    const z2 = smoothData[(y - 1) * w + (x + 1)];
+                    const z3 = smoothData[y * w + (x - 1)];
+                    const z5 = smoothData[y * w + (x + 1)];
+                    const z6 = smoothData[(y + 1) * w + (x - 1)];
+                    const z7 = smoothData[(y + 1) * w + x];
+                    const z8 = smoothData[(y + 1) * w + (x + 1)];
 
-        // Find max/min elevation for hypsometric hints
-        let maxE = -Infinity, minE = Infinity;
-        for (let i = 0; i < smoothData.length; i++) {
-            if (smoothData[i] > maxE) maxE = smoothData[i];
-            if (smoothData[i] < minE) minE = smoothData[i];
-        }
-        const eRange = maxE - minE || 1;
+                    const dzdx = ((z2 + 2 * z5 + z8) - (z0 + 2 * z3 + z6)) / 8;
+                    const dzdy = ((z6 + 2 * z7 + z8) - (z0 + 2 * z1 + z2)) / 8;
 
-        for (let y = 1; y < h - 1; y++) {
-            for (let x = 1; x < w - 1; x++) {
-                const z0 = smoothData[(y - 1) * w + (x - 1)];
-                const z1 = smoothData[(y - 1) * w + x];
-                const z2 = smoothData[(y - 1) * w + (x + 1)];
-                const z3 = smoothData[y * w + (x - 1)];
-                const z5 = smoothData[y * w + (x + 1)];
-                const z6 = smoothData[(y + 1) * w + (x - 1)];
-                const z7 = smoothData[(y + 1) * w + x];
-                const z8 = smoothData[(y + 1) * w + (x + 1)];
+                    const nx = -dzdx * zFactor;
+                    const ny = -dzdy * zFactor;
+                    const nz = 1.0;
+                    const mag = Math.sqrt(nx * nx + ny * ny + nz * nz);
 
-                const dzdx = ((z2 + 2 * z5 + z8) - (z0 + 2 * z3 + z6)) / 8;
-                const dzdy = ((z6 + 2 * z7 + z8) - (z0 + 2 * z1 + z2)) / 8;
+                    // Hillshade (Lambertian)
+                    const dot = (nx / mag) * lx + (ny / mag) * ly + (nz / mag) * lz;
 
-                // Surface normal
-                const nx = -dzdx * zFactor;
-                const ny = -dzdy * zFactor;
-                const nz = 1.0;
+                    // Ambient Shadow (curvature/slope approximation)
+                    const slope = Math.sqrt(dzdx * dzdx + dzdy * dzdy);
 
-                const mag = Math.sqrt(nx * nx + ny * ny + nz * nz);
-                const snx = nx / mag;
-                const sny = ny / mag;
-                const snz = nz / mag;
+                    // Intensity multiplier
+                    // 0 -> 0 (No Shading). 0.5 -> 1.0 (Standard). 1.0 -> 2.0 (Intense).
+                    const intensityMult = shadingIntensity * 2.0;
 
-                // 1. Multidirection shading (primary + subtle secondary)
-                const dot1 = snx * l1x + sny * l1y + snz * l1z;
-                const dot2 = snx * l2x + sny * l2y + snz * l2z;
-                const combinedShade = (dot1 * 0.7) + (dot2 * 0.3);
+                    if (isDarkMode) {
+                        // DARK MODE ART
 
-                // 2. Slopeshade (darken steep areas)
-                const gradientMag = Math.sqrt(dzdx * dzdx + dzdy * dzdy);
-                const slopeFactor = Math.min(1.0, (gradientMag * zFactor * 5));
+                        if (dot > 0) {
+                            // Highlight
+                            const alpha = dot * 0.4 * intensityMult;
+                            const val = 255;
+                            data[idx] = val;
+                            data[idx + 1] = val;
+                            data[idx + 2] = val;
+                            data[idx + 3] = Math.min(255, Math.floor(alpha * 255));
+                        } else {
+                            // Shadow + Ambient
+                            const slopeDarkening = Math.min(1, slope * zFactor * 2);
+                            const shadowStrength = Math.abs(dot);
+                            const combinedShadow = Math.min(1, (shadowStrength + slopeDarkening) * intensityMult);
 
-                // --- NEW: Flatland Thresholding ---
-                const deadzone = 0.002;
-                const slopeTransparency = Math.min(1.0, Math.max(0, (gradientMag - deadzone) / deadzone));
+                            const val = 0;
+                            data[idx] = val;
+                            data[idx + 1] = val;
+                            data[idx + 2] = val;
+                            data[idx + 3] = Math.min(255, Math.floor(combinedShadow * 0.4 * 255));
+                        }
+                    } else {
+                        // LIGHT MODE ART
 
-                const neutral = Math.cos(zenRad);
-                const diff = (combinedShade - neutral) * contrast;
+                        const shadow = dot < 0 ? Math.abs(dot) : 0;
+                        const ambient = Math.min(1, slope * zFactor * 4); // 0..1
 
-                // 3. Hypsometric hint (Soft Fog)
-                const elevation = smoothData[y * w + x];
-                const elevationFactor = (elevation - minE) / eRange;
-                const depthFactor = 0.6 + (1 - elevationFactor) * 0.4;
+                        // Hillshade factor 
+                        const shadeH = 1 - (shadow * 0.6 * intensityMult);
 
-                const idx = (y * w + x) * 4;
+                        // Ambient factor
+                        const shadeA = 1 - (ambient * 0.4 * intensityMult);
 
-                // 4. Micro-noise
-                const noise = (Math.random() - 0.5) * 4;
+                        // Combined shade
+                        const val = Math.max(0, Math.floor(255 * shadeH * shadeA));
 
-                if (diff < 0) {
-                    // Shadows + Slopeshade (Indigo Ink: 30, 27, 75)
-                    const shadowAlpha = Math.abs(diff) * 160 * shadingIntensity * depthFactor;
-                    const slopeAlpha = slopeFactor * 120 * shadingIntensity;
-                    const finalAlpha = Math.max(shadowAlpha, slopeAlpha) * slopeTransparency;
+                        data[idx] = val;
+                        data[idx + 1] = val;
+                        data[idx + 2] = val;
+                        data[idx + 3] = 255;
+                    }
+                }
+            }
+        } else {
 
-                    data[idx] = 30;
-                    data[idx + 1] = 27;
-                    data[idx + 2] = 75;
-                    data[idx + 3] = Math.min(220, finalAlpha + noise);
-                } else {
-                    // Highlights (Cream Ink: 254, 243, 199)
-                    const highlightAlpha = diff * 100 * shadingIntensity * (0.6 + elevationFactor * 0.6) * slopeTransparency;
+            // Lighting parameters
+            const primaryAz = (315 * Math.PI) / 180;
+            const secondaryAz = (45 * Math.PI) / 180;
+            const zenRad = (45 * Math.PI) / 180;
 
-                    data[idx] = 254;
-                    data[idx + 1] = 243;
-                    data[idx + 2] = 199;
-                    data[idx + 3] = Math.min(160, highlightAlpha + noise);
+            // Light vectors
+            const l1x = Math.cos(primaryAz) * Math.sin(zenRad);
+            const l1y = Math.sin(primaryAz) * Math.sin(zenRad);
+            const l1z = Math.cos(zenRad);
+
+            const l2x = Math.cos(secondaryAz) * Math.sin(zenRad);
+            const l2y = Math.sin(secondaryAz) * Math.sin(zenRad);
+            const l2z = Math.cos(zenRad);
+
+            // Subtly adjust intensity based on the slider
+            const zFactor = 0.005 + (shadingIntensity * 0.04);
+            const contrast = 1.2 + (shadingIntensity * 0.5);
+
+            // Find max/min elevation for hypsometric hints
+            let maxE = -Infinity, minE = Infinity;
+            for (let i = 0; i < smoothData.length; i++) {
+                if (smoothData[i] > maxE) maxE = smoothData[i];
+                if (smoothData[i] < minE) minE = smoothData[i];
+            }
+            const eRange = maxE - minE || 1;
+
+            for (let y = 1; y < h - 1; y++) {
+                for (let x = 1; x < w - 1; x++) {
+                    const z0 = smoothData[(y - 1) * w + (x - 1)];
+                    const z1 = smoothData[(y - 1) * w + x];
+                    const z2 = smoothData[(y - 1) * w + (x + 1)];
+                    const z3 = smoothData[y * w + (x - 1)];
+                    const z5 = smoothData[y * w + (x + 1)];
+                    const z6 = smoothData[(y + 1) * w + (x - 1)];
+                    const z7 = smoothData[(y + 1) * w + x];
+                    const z8 = smoothData[(y + 1) * w + (x + 1)];
+
+                    const dzdx = ((z2 + 2 * z5 + z8) - (z0 + 2 * z3 + z6)) / 8;
+                    const dzdy = ((z6 + 2 * z7 + z8) - (z0 + 2 * z1 + z2)) / 8;
+
+                    // Surface normal
+                    const nx = -dzdx * zFactor;
+                    const ny = -dzdy * zFactor;
+                    const nz = 1.0;
+
+                    const mag = Math.sqrt(nx * nx + ny * ny + nz * nz);
+                    const snx = nx / mag;
+                    const sny = ny / mag;
+                    const snz = nz / mag;
+
+                    // 1. Multidirection shading (primary + subtle secondary)
+                    const dot1 = snx * l1x + sny * l1y + snz * l1z;
+                    const dot2 = snx * l2x + sny * l2y + snz * l2z;
+                    const combinedShade = (dot1 * 0.7) + (dot2 * 0.3);
+
+                    // 2. Slopeshade (darken steep areas)
+                    const gradientMag = Math.sqrt(dzdx * dzdx + dzdy * dzdy);
+                    const slopeFactor = Math.min(1.0, (gradientMag * zFactor * 5));
+
+                    // --- NEW: Flatland Thresholding ---
+                    const deadzone = 0.002;
+                    const slopeTransparency = Math.min(1.0, Math.max(0, (gradientMag - deadzone) / deadzone));
+
+                    const neutral = Math.cos(zenRad);
+                    const diff = (combinedShade - neutral) * contrast;
+
+                    // 3. Hypsometric hint (Soft Fog)
+                    const elevation = smoothData[y * w + x];
+                    const elevationFactor = (elevation - minE) / eRange;
+                    const depthFactor = 0.6 + (1 - elevationFactor) * 0.4;
+
+                    const idx = (y * w + x) * 4;
+
+                    // 4. Micro-noise
+                    const noise = (Math.random() - 0.5) * 4;
+
+                    if (diff < 0) {
+                        // Shadows + Slopeshade (Indigo Ink: 30, 27, 75)
+                        const shadowAlpha = Math.abs(diff) * 160 * shadingIntensity * depthFactor;
+                        const slopeAlpha = slopeFactor * 120 * shadingIntensity;
+                        const finalAlpha = Math.max(shadowAlpha, slopeAlpha) * slopeTransparency;
+
+                        data[idx] = 30;
+                        data[idx + 1] = 27;
+                        data[idx + 2] = 75;
+                        data[idx + 3] = Math.min(220, finalAlpha + noise);
+                    } else {
+                        // Highlights (Cream Ink: 254, 243, 199)
+                        const highlightAlpha = diff * 100 * shadingIntensity * (0.6 + elevationFactor * 0.6) * slopeTransparency;
+
+                        data[idx] = 254;
+                        data[idx + 1] = 243;
+                        data[idx + 2] = 199;
+                        data[idx + 3] = Math.min(160, highlightAlpha + noise);
+                    }
                 }
             }
         }
 
         ctx.putImageData(imgData, 0, 0);
         return canvas.toDataURL();
-    }, [elevationData, showShading, gridSize, shadingIntensity]);
+    }, [elevationData, showShading, gridSize, shadingIntensity, artMode, isDarkMode]);
 
     useEffect(() => {
         if (!viewBbox) return;
@@ -662,36 +755,75 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const svg = d3.select(svgRef.current);
         const { width, height } = containerSize;
 
-        // Color scheme based on dark mode
-        const colors = isDarkMode ? {
-            background: '#0a0a0a',
-            contourStroke: '#2a2a2a',
-            borderStroke: '#2a2a2a',
-            routeStroke: '#f5f5f5',
-            routeOutline: '#0a0a0a',
-            markerFill: '#f5f5f5',
-            markerStroke: '#0a0a0a',
-            labelFill: '#f5f5f5',
-            labelStroke: '#0a0a0a',
-            titleFill: '#f5f5f5',
-            statsFill: '#a3a3a3',
-            waterFill: '#1a1a1a',
-            waterStroke: '#252525',
-        } : {
-            background: '#ffffff',
-            contourStroke: '#e5e5e5',
-            borderStroke: '#e5e5e5',
-            routeStroke: '#171717',
-            routeOutline: 'white',
-            markerFill: '#171717',
-            markerStroke: 'white',
-            labelFill: '#171717',
-            labelStroke: 'white',
-            titleFill: '#171717',
-            statsFill: '#525252',
-            waterFill: '#f5f5f5',
-            waterStroke: '#e5e5e5',
-        };
+        // Color scheme based on modes
+        let colors;
+        if (artMode) {
+            if (isDarkMode) {
+                colors = {
+                    background: '#1c1c1e', // Deep charcoal
+                    contourStroke: '#48484a', // Lighter grey
+                    borderStroke: '#48484a',
+                    routeStroke: '#ffffff',
+                    routeOutline: 'none',
+                    markerFill: '#ffffff',
+                    markerStroke: '#2c2c2e',
+                    labelFill: '#e5e5e7',
+                    labelStroke: '#1c1c1e',
+                    titleFill: '#e5e5e7',
+                    statsFill: '#aeaeb2',
+                    waterFill: '#2c2c2e', // Slightly lighter/different tone
+                    waterStroke: 'none',
+                };
+            } else {
+                colors = {
+                    background: '#f5f3ee',
+                    contourStroke: '#3a3a3a',
+                    borderStroke: '#3a3a3a',
+                    routeStroke: '#1c1c1e', // Dark charcoal
+                    routeOutline: 'none',
+                    markerFill: '#555555',
+                    markerStroke: '#3a3a3a',
+                    labelFill: '#555555',
+                    labelStroke: '#f5f3ee', // Halo
+                    titleFill: '#3a3a3a',
+                    statsFill: '#555555',
+                    waterFill: '#eceae6',
+                    waterStroke: 'none',
+                };
+            }
+        } else if (isDarkMode) {
+            colors = {
+                background: '#0a0a0a',
+                contourStroke: '#2a2a2a',
+                borderStroke: '#2a2a2a',
+                routeStroke: '#f5f5f5',
+                routeOutline: '#0a0a0a',
+                markerFill: '#f5f5f5',
+                markerStroke: '#0a0a0a',
+                labelFill: '#f5f5f5',
+                labelStroke: '#0a0a0a',
+                titleFill: '#f5f5f5',
+                statsFill: '#a3a3a3',
+                waterFill: '#1a1a1a',
+                waterStroke: '#252525',
+            };
+        } else {
+            colors = {
+                background: '#ffffff',
+                contourStroke: '#e5e5e5',
+                borderStroke: '#e5e5e5',
+                routeStroke: '#171717',
+                routeOutline: 'white',
+                markerFill: '#171717',
+                markerStroke: 'white',
+                labelFill: '#171717',
+                labelStroke: 'white',
+                titleFill: '#171717',
+                statsFill: '#525252',
+                waterFill: '#f5f5f5',
+                waterStroke: '#e5e5e5',
+            };
+        }
 
         // Clear previous
         svg.selectAll("*").remove();
@@ -727,7 +859,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("ry", 2);
 
         // Add Hillshade layer if available
-        if (hillshadeImage && showShading) {
+        if (hillshadeImage && (showShading || artMode)) {
             const topLeft = projection([viewBbox?.minLng || 0, viewBbox?.maxLat || 0]);
             const bottomRight = projection([viewBbox?.maxLng || 0, viewBbox?.minLat || 0]);
 
@@ -743,8 +875,9 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                     .attr("height", imgH)
                     .attr("preserveAspectRatio", "none")
                     .attr("clip-path", `url(#${clipId})`)
-                    .style("opacity", 1.0)
+                    .style("opacity", artMode ? (isDarkMode ? 0.8 : 0.7) : 1.0) // Adjust opacity for blend
                     .style("image-rendering", "auto")
+                    .style("mix-blend-mode", artMode ? (isDarkMode ? "normal" : "multiply") : "normal")
                     .attr("class", "hillshade-layer");
             }
         }
@@ -779,7 +912,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
         const contours = d3.contours()
             .size([usedGridSize[0], usedGridSize[1]])
-            .thresholds(30)
+            .thresholds(artMode ? 12 : 30) // Fewer contours in Art Mode (simpler look)
             (Array.from(terrainValues));
 
         const contourGroup = svg.append("g")
@@ -803,7 +936,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("d", d3.geoPath(gridToProjection))
             .attr("fill", "none")
             .attr("stroke", colors.contourStroke)
-            .attr("stroke-width", 1);
+            .attr("stroke-width", artMode ? 0.5 : 1)
+            .style("opacity", artMode ? 0.6 : 1);
 
         // Render water bodies (lakes, rivers, oceans) on top of contours
         if (showWater && waterData && waterData.features && waterData.features.length > 0) {
@@ -1319,6 +1453,48 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 .attr("height", flagHeight)
                 .attr("href", imageUrl)
                 .attr("preserveAspectRatio", "xMidYMid meet");
+        }
+
+        // Texture Overlay (Art Mode only)
+        if (artMode) {
+            // Generate simple noise pattern
+            const noiseCanvas = document.createElement('canvas');
+            const noiseSize = 256;
+            noiseCanvas.width = noiseSize;
+            noiseCanvas.height = noiseSize;
+            const nCtx = noiseCanvas.getContext('2d');
+            if (nCtx) {
+                const imgData = nCtx.createImageData(noiseSize, noiseSize);
+                const data = imgData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const val = Math.random() * 255;
+                    data[i] = val;
+                    data[i + 1] = val;
+                    data[i + 2] = val;
+                    data[i + 3] = 40; // Low alpha for subtle noise
+                }
+                nCtx.putImageData(imgData, 0, 0);
+
+                svg.append("rect")
+                    .attr("width", width)
+                    .attr("height", height)
+                    .attr("fill", `url(#paper-noise-${clipId})`)
+                    .style("mix-blend-mode", "overlay")
+                    .style("opacity", 0.15)
+                    .attr("pointer-events", "none");
+
+                // Define pattern
+                const defs = svg.select("defs");
+                defs.append("pattern")
+                    .attr("id", `paper-noise-${clipId}`)
+                    .attr("width", noiseSize)
+                    .attr("height", noiseSize)
+                    .attr("patternUnits", "userSpaceOnUse")
+                    .append("image")
+                    .attr("href", noiseCanvas.toDataURL())
+                    .attr("width", noiseSize)
+                    .attr("height", noiseSize);
+            }
         }
 
     }, [processed, geoJson, elevationData, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize, isDarkMode, showWater, waterData, showMarkers]);
