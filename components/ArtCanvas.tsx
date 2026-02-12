@@ -8,7 +8,6 @@ import { processRoute, ProcessedRoute } from '@/lib/geo';
 import { generateTerrain, fetchMapboxTerrain } from '@/lib/terrain';
 import { fetchLandmarks, Landmark } from '@/lib/landmarks';
 import jsPDF from 'jspdf';
-import { Loader2 } from 'lucide-react';
 
 export interface StatsOverrides {
     routeName?: string;
@@ -63,13 +62,12 @@ export interface ArtCanvasHandle {
     exportPNG: (fileName: string) => Promise<void>;
 }
 
-const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, showWater = true, showMarkers = true, showShading = false, shadingIntensity = 0.5, artMode = false, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick, onLoadingStatusChange }, ref) => {
+const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, showWater = true, showMarkers = true, showShading = false, shadingIntensity = 0.5, artMode: _artMode = false, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick, onLoadingStatusChange }, ref) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const projectionRef = useRef<d3.GeoProjection | null>(null);
     const [processed, setProcessed] = useState<ProcessedRoute | null>(null);
     const [elevationData, setElevationData] = useState<number[] | null>(null);
-    const [isLoadingElevation, setIsLoadingElevation] = useState(false);
     const [elevationError, setElevationError] = useState<string | null>(null);
     const [gridSize] = useState({ w: 800, h: 800 });
     const [viewBbox, setViewBbox] = useState<{ minLng: number; minLat: number; maxLng: number; maxLat: number } | null>(null);
@@ -161,8 +159,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
         // --- 1. Aggressive Smoothing (5x5 Gaussian-ish) ---
         const smoothData = new Float32Array(elevationData.length);
-        // Use wider Gaussian blur for Art Mode to reduce noise ("pixelation")
-        const radius = artMode ? 4 : 2; // 5x5 (2) vs 9x9 (4) window
+        // Use wider Gaussian blur for smoother hillshade
+        const radius = 4; // 9x9 window for smooth appearance
 
         for (let y = 0; y < h; y++) {
             for (let x = 0; x < w; x++) {
@@ -193,8 +191,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const imgData = ctx.createImageData(w, h);
         const data = imgData.data;
 
-        if (artMode) {
-            // --- ART MODE (Poster Style) ---
+        if (showShading) {
+            // --- RELIEF SHADING (Poster Style) ---
             const az = (315 * Math.PI) / 180;
             const alt = (45 * Math.PI) / 180;
             const lx = Math.cos(az) * Math.cos(alt);
@@ -384,7 +382,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
         ctx.putImageData(imgData, 0, 0);
         return canvas.toDataURL();
-    }, [elevationData, showShading, gridSize, shadingIntensity, artMode, isDarkMode]);
+    }, [elevationData, showShading, gridSize, shadingIntensity, isDarkMode]);
 
     useEffect(() => {
         if (!viewBbox) return;
@@ -405,8 +403,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         }
 
         const fetchRealTerrain = async () => {
-            setIsLoadingElevation(true);
-            onLoadingStatusChange?.("Drawing contours...");
+            onLoadingStatusChange?.("TERRAIN: Fetching elevation data...");
             setElevationError(null);
             try {
                 const result = await fetchMapboxTerrain(viewBbox, gridSize.w, gridSize.h);
@@ -422,7 +419,6 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 console.error("Falling back to procedural terrain", err);
                 setElevationError(errorMessage);
             } finally {
-                setIsLoadingElevation(false);
                 onLoadingStatusChange?.(null);
             }
         };
@@ -755,43 +751,9 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const svg = d3.select(svgRef.current);
         const { width, height } = containerSize;
 
-        // Color scheme based on modes
+        // Color scheme based on dark/light mode only
         let colors;
-        if (artMode) {
-            if (isDarkMode) {
-                colors = {
-                    background: '#1c1c1e', // Deep charcoal
-                    contourStroke: '#48484a', // Lighter grey
-                    borderStroke: '#48484a',
-                    routeStroke: '#ffffff',
-                    routeOutline: 'none',
-                    markerFill: '#ffffff',
-                    markerStroke: '#2c2c2e',
-                    labelFill: '#e5e5e7',
-                    labelStroke: '#1c1c1e',
-                    titleFill: '#e5e5e7',
-                    statsFill: '#aeaeb2',
-                    waterFill: '#2c2c2e', // Slightly lighter/different tone
-                    waterStroke: 'none',
-                };
-            } else {
-                colors = {
-                    background: '#f5f3ee',
-                    contourStroke: '#3a3a3a',
-                    borderStroke: '#3a3a3a',
-                    routeStroke: '#1c1c1e', // Dark charcoal
-                    routeOutline: 'none',
-                    markerFill: '#555555',
-                    markerStroke: '#3a3a3a',
-                    labelFill: '#555555',
-                    labelStroke: '#f5f3ee', // Halo
-                    titleFill: '#3a3a3a',
-                    statsFill: '#555555',
-                    waterFill: '#eceae6',
-                    waterStroke: 'none',
-                };
-            }
-        } else if (isDarkMode) {
+        if (isDarkMode) {
             colors = {
                 background: '#0a0a0a',
                 contourStroke: '#2a2a2a',
@@ -859,7 +821,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("ry", 2);
 
         // Add Hillshade layer if available
-        if (hillshadeImage && (showShading || artMode)) {
+        if (hillshadeImage && showShading) {
             const topLeft = projection([viewBbox?.minLng || 0, viewBbox?.maxLat || 0]);
             const bottomRight = projection([viewBbox?.maxLng || 0, viewBbox?.minLat || 0]);
 
@@ -875,9 +837,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                     .attr("height", imgH)
                     .attr("preserveAspectRatio", "none")
                     .attr("clip-path", `url(#${clipId})`)
-                    .style("opacity", artMode ? (isDarkMode ? 0.8 : 0.7) : 1.0) // Adjust opacity for blend
+                    .style("opacity", shadingIntensity)
                     .style("image-rendering", "auto")
-                    .style("mix-blend-mode", artMode ? (isDarkMode ? "normal" : "multiply") : "normal")
                     .attr("class", "hillshade-layer");
             }
         }
@@ -910,10 +871,77 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             usedGridSize = [terrWidth, terrHeight];
         }
 
+        // Calculate dynamic contour thresholds based on elevation range AND geographic size
+        const terrainArray = Array.from(terrainValues);
+        let minElev = Infinity;
+        let maxElev = -Infinity;
+        for (let i = 0; i < terrainArray.length; i++) {
+            const val = terrainArray[i];
+            if (val < minElev) minElev = val;
+            if (val > maxElev) maxElev = val;
+        }
+        const elevRange = maxElev - minElev;
+
+        // Calculate approximate geographic size in km
+        const bboxWidthDeg = viewBbox ? (viewBbox.maxLng - viewBbox.minLng) : 0.5;
+        const bboxHeightDeg = viewBbox ? (viewBbox.maxLat - viewBbox.minLat) : 0.5;
+        const avgLat = viewBbox ? (viewBbox.maxLat + viewBbox.minLat) / 2 : 45;
+        const kmPerDegLat = 111; // roughly constant
+        const kmPerDegLng = 111 * Math.cos(avgLat * Math.PI / 180);
+        const bboxWidthKm = bboxWidthDeg * kmPerDegLng;
+        const bboxHeightKm = bboxHeightDeg * kmPerDegLat;
+        const bboxDiagonalKm = Math.sqrt(bboxWidthKm * bboxWidthKm + bboxHeightKm * bboxHeightKm);
+
+        // Target: roughly 25-40 contour lines for good visual density
+        // For small areas, we want finer intervals; for large areas, coarser intervals
+        // Base interval on elevation range, then adjust for geographic size
+        let baseInterval: number;
+        if (elevRange < 100) {
+            baseInterval = 5;
+        } else if (elevRange < 300) {
+            baseInterval = 10;
+        } else if (elevRange < 600) {
+            baseInterval = 15;
+        } else if (elevRange < 1000) {
+            baseInterval = 25;
+        } else if (elevRange < 2000) {
+            baseInterval = 40;
+        } else {
+            baseInterval = 50;
+        }
+
+        // Scale interval based on geographic size
+        // Small routes (< 20km diagonal) get finer intervals
+        // Large routes (> 100km diagonal) get coarser intervals
+        let sizeMultiplier: number;
+        if (bboxDiagonalKm < 10) {
+            sizeMultiplier = 0.5; // Very small route - halve the interval
+        } else if (bboxDiagonalKm < 25) {
+            sizeMultiplier = 0.75; // Small route
+        } else if (bboxDiagonalKm < 50) {
+            sizeMultiplier = 1.0; // Medium route - use base interval
+        } else if (bboxDiagonalKm < 100) {
+            sizeMultiplier = 1.25; // Large route
+        } else {
+            sizeMultiplier = 1.5; // Very large route
+        }
+
+        // Calculate final interval, with min/max bounds
+        const contourInterval = Math.max(5, Math.min(100, Math.round(baseInterval * sizeMultiplier)));
+
+        // Generate thresholds at fixed elevation intervals
+        // Round min down and max up to nearest interval
+        const startElev = Math.floor(minElev / contourInterval) * contourInterval;
+        const endElev = Math.ceil(maxElev / contourInterval) * contourInterval;
+        const thresholds: number[] = [];
+        for (let elev = startElev; elev <= endElev; elev += contourInterval) {
+            thresholds.push(elev);
+        }
+
         const contours = d3.contours()
             .size([usedGridSize[0], usedGridSize[1]])
-            .thresholds(artMode ? 12 : 30) // Fewer contours in Art Mode (simpler look)
-            (Array.from(terrainValues));
+            .thresholds(thresholds)
+            (terrainArray);
 
         const contourGroup = svg.append("g")
             .attr("class", "contours")
@@ -936,8 +964,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("d", d3.geoPath(gridToProjection))
             .attr("fill", "none")
             .attr("stroke", colors.contourStroke)
-            .attr("stroke-width", artMode ? 0.5 : 1)
-            .style("opacity", artMode ? 0.6 : 1);
+            .attr("stroke-width", 0.75)
+            .style("opacity", 0.8);
 
         // Render water bodies (lakes, rivers, oceans) on top of contours
         if (showWater && waterData && waterData.features && waterData.features.length > 0) {
@@ -1289,11 +1317,14 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         };
 
         let dateText = '';
-        if (statsOverrides?.dateStart) {
-            if (statsOverrides?.dateEnd) {
-                dateText = `${formatDate(statsOverrides.dateStart)} – ${formatDate(statsOverrides.dateEnd)}`;
+        // Use override dates if provided, otherwise fall back to Strava dates
+        const displayDateStart = statsOverrides?.dateStart || stravaDateStart;
+        const displayDateEnd = statsOverrides?.dateEnd || stravaDateEnd;
+        if (displayDateStart) {
+            if (displayDateEnd && displayDateEnd !== displayDateStart) {
+                dateText = `${formatDate(displayDateStart)} – ${formatDate(displayDateEnd)}`;
             } else {
-                dateText = formatDate(statsOverrides.dateStart);
+                dateText = formatDate(displayDateStart);
             }
         }
 
@@ -1319,8 +1350,6 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         // Calculate dimensions
         const locationFontSize = 10 * scaleFactor;
         const lineGap = 4 * scaleFactor;
-        const charWidthTitle = titleFontSize * 0.65; // Approximate character width for uppercase
-        const charWidthDetail = detailFontSize * 0.55;
 
         // Calculate flag/image dimensions - make it prominent
         // Use 3:2 aspect ratio for flags (most common), custom images use xMidYMid meet to preserve ratio
@@ -1328,42 +1357,21 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const flagWidth = imageUrl ? flagHeight * 1.5 : 0; // 3:2 aspect ratio for flags
         const flagGap = imageUrl ? 16 * scaleFactor : 0;
 
-        // Estimate widths
-        const titleWidth = routeName.length * charWidthTitle;
-        const locationWidth = hasLocation ? locationText.length * charWidthDetail * 0.9 : 0;
-        const leftContentWidth = Math.max(titleWidth, locationWidth);
-
-        // Available width for stats (right side)
-        const availableStatsWidth = width - posterPadding * 2 - leftContentWidth - flagWidth - flagGap - 20 * scaleFactor;
-
-        // Build stats text, potentially splitting into two lines if needed
+        // Build stats text
         const metricsText = [distanceText, ascentText, descentText].filter(Boolean).join('  ·  ');
-        const fullStatsText = dateText
-            ? `${metricsText}  ·  ${dateText}`
-            : metricsText;
-        const fullStatsWidth = fullStatsText.length * charWidthDetail;
 
-        // Check if we need to split stats into two lines
+        // Stats layout:
         // Line 1 (top, aligned with title): metrics (distance, elevation)
-        // Line 2 (bottom, aligned with location): date
+        // Line 2 (bottom): date (always on second line if present)
         let statsTopLine = '';  // Metrics - aligned with title
-        let statsBottomLine = '';  // Date - aligned with location
+        let statsBottomLine = '';  // Date - always below metrics
 
-        if (fullStatsWidth <= availableStatsWidth && !hasLocation) {
-            // Everything fits on one line and no location means single line layout
-            statsTopLine = fullStatsText;
-        } else if (hasLocation || dateText) {
-            // Two-line layout: metrics on top, date on bottom
-            statsTopLine = metricsText;
+        // Metrics always go on top line
+        statsTopLine = metricsText;
+
+        // Date always goes on second line if present
+        if (dateText) {
             statsBottomLine = dateText;
-        } else {
-            // No date and no location, but metrics don't fit - split metrics
-            if (metricsText.length * charWidthDetail <= availableStatsWidth) {
-                statsTopLine = metricsText;
-            } else {
-                statsTopLine = distanceText;
-                statsBottomLine = [ascentText, descentText].filter(Boolean).join('  ·  ');
-            }
         }
 
         // Calculate vertical positions - now potentially 2 lines on each side
@@ -1455,58 +1463,10 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 .attr("preserveAspectRatio", "xMidYMid meet");
         }
 
-        // Texture Overlay (Art Mode only)
-        if (artMode) {
-            // Generate simple noise pattern
-            const noiseCanvas = document.createElement('canvas');
-            const noiseSize = 256;
-            noiseCanvas.width = noiseSize;
-            noiseCanvas.height = noiseSize;
-            const nCtx = noiseCanvas.getContext('2d');
-            if (nCtx) {
-                const imgData = nCtx.createImageData(noiseSize, noiseSize);
-                const data = imgData.data;
-                for (let i = 0; i < data.length; i += 4) {
-                    const val = Math.random() * 255;
-                    data[i] = val;
-                    data[i + 1] = val;
-                    data[i + 2] = val;
-                    data[i + 3] = 40; // Low alpha for subtle noise
-                }
-                nCtx.putImageData(imgData, 0, 0);
-
-                svg.append("rect")
-                    .attr("width", width)
-                    .attr("height", height)
-                    .attr("fill", `url(#paper-noise-${clipId})`)
-                    .style("mix-blend-mode", "overlay")
-                    .style("opacity", 0.15)
-                    .attr("pointer-events", "none");
-
-                // Define pattern
-                const defs = svg.select("defs");
-                defs.append("pattern")
-                    .attr("id", `paper-noise-${clipId}`)
-                    .attr("width", noiseSize)
-                    .attr("height", noiseSize)
-                    .attr("patternUnits", "userSpaceOnUse")
-                    .append("image")
-                    .attr("href", noiseCanvas.toDataURL())
-                    .attr("width", noiseSize)
-                    .attr("height", noiseSize);
-            }
-        }
-
     }, [processed, geoJson, elevationData, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize, isDarkMode, showWater, waterData, showMarkers]);
 
     return (
         <div ref={containerRef} className={`w-full h-full relative ${isDarkMode ? 'bg-[#0a0a0a]' : 'bg-white'}`}>
-            {isLoadingElevation && (
-                <div className="absolute top-4 right-4 flex items-center gap-2 text-xs text-neutral-400 bg-white/80 backdrop-blur-sm px-2 py-1 rounded border border-neutral-100 z-10">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Fetching terrain...
-                </div>
-            )}
             {elevationError && (
                 <div className="absolute top-4 left-4 right-4 flex items-center justify-between gap-2 text-[10px] text-red-500 bg-red-50/90 backdrop-blur-sm px-3 py-2 rounded border border-red-100 z-10 animate-in fade-in slide-in-from-top-2">
                     <div className="flex items-center gap-2">

@@ -85,11 +85,10 @@ const getLandmarkIcon = (type: Landmark['type']) => {
 };
 
 // Section Header Component
-function SectionHeader({ emoji, title }: { emoji: string; title: string }) {
+function SectionHeader({ title }: { title: string }) {
     return (
-        <div className="flex items-center gap-2 mb-3">
-            <span className="text-base">{emoji}</span>
-            <h4 className="text-sm font-semibold text-neutral-900">{title}</h4>
+        <div className="mb-3">
+            <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{title}</h4>
         </div>
     );
 }
@@ -458,7 +457,10 @@ export default function EditPanel({
             `}>
                 {/* Header */}
                 <div className="p-4 border-b border-neutral-200 bg-white flex items-center justify-between">
-                    <h3 className="font-semibold text-base text-neutral-900">Customize</h3>
+                    <div>
+                        <h3 className="font-semibold text-base text-neutral-900">Customize</h3>
+                        <p className="text-xs text-neutral-400 mt-0.5">Adjust your map below</p>
+                    </div>
                     <button
                         onClick={() => setIsMobileOpen(false)}
                         className="lg:hidden p-1 hover:bg-neutral-100 rounded"
@@ -472,7 +474,7 @@ export default function EditPanel({
 
                     {/* ========== SECTION 1: Route ========== */}
                     <div className="p-4 bg-white border-b border-neutral-200">
-                        <SectionHeader emoji="📍" title="Route" />
+                        <SectionHeader title="Route" />
 
                         {!statsDefaults ? (
                             <p className="text-sm text-neutral-400 text-center py-4">Loading route info...</p>
@@ -515,9 +517,13 @@ export default function EditPanel({
                                 {/* Edit Stats Button */}
                                 <button
                                     onClick={() => setStatsEditOpen(!statsEditOpen)}
-                                    className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
+                                    className={`text-xs font-medium transition-colors ${
+                                        statsEditOpen
+                                            ? 'text-neutral-500 hover:text-neutral-700'
+                                            : 'text-blue-600 hover:text-blue-700 underline underline-offset-2'
+                                    }`}
                                 >
-                                    {statsEditOpen ? 'Cancel editing' : 'Edit details'}
+                                    {statsEditOpen ? 'Cancel' : 'Edit route details →'}
                                 </button>
 
                                 {/* Inline Stats Editor */}
@@ -833,7 +839,7 @@ export default function EditPanel({
 
                     {/* ========== SECTION 2: Appearance (FEATURED) ========== */}
                     <div className="p-4">
-                        <SectionHeader emoji="🎨" title="Appearance" />
+                        <SectionHeader title="Appearance" />
 
                         {/* Featured Card */}
                         <div className="bg-white rounded-xl p-4 border border-neutral-200 shadow-sm space-y-4">
@@ -883,7 +889,7 @@ export default function EditPanel({
 
                     {/* ========== SECTION 3: Details ========== */}
                     <div className="p-4 pt-0">
-                        <SectionHeader emoji="✏️" title="Details" />
+                        <SectionHeader title="Details" />
 
                         <div className="space-y-3">
                             {/* Start & Finish Dots */}
@@ -965,7 +971,7 @@ export default function EditPanel({
 
                 {/* ========== SECTION 4: Export (Sticky Bottom) ========== */}
                 <div className="p-4 border-t border-neutral-200 bg-white space-y-3">
-                    <SectionHeader emoji="⬇️" title="Export" />
+                    <SectionHeader title="Export" />
 
                     {/* Primary Button */}
                     <button
