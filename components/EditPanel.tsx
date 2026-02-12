@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { ChevronDown, ChevronRight, ChevronUp, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star, Download, Heart, X, Settings, Palette } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronUp, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star, Download, Heart, X, Settings, Printer, ShoppingBag, Coffee } from 'lucide-react';
 import { Landmark } from '@/lib/landmarks';
 
 export interface StatsOverrides {
@@ -84,27 +84,95 @@ const getLandmarkIcon = (type: Landmark['type']) => {
     }
 };
 
+// Section Header Component
+function SectionHeader({ emoji, title }: { emoji: string; title: string }) {
+    return (
+        <div className="flex items-center gap-2 mb-3">
+            <span className="text-base">{emoji}</span>
+            <h4 className="text-sm font-semibold text-neutral-900">{title}</h4>
+        </div>
+    );
+}
+
+// Toggle Switch Component
+function ToggleSwitch({
+    checked,
+    onChange,
+    id
+}: {
+    checked: boolean;
+    onChange: (value: boolean) => void;
+    id: string;
+}) {
+    return (
+        <div className="relative inline-block w-9 h-5 align-middle select-none">
+            <input
+                type="checkbox"
+                id={id}
+                checked={checked}
+                onChange={(e) => onChange(e.target.checked)}
+                className="sr-only peer"
+            />
+            <label
+                htmlFor={id}
+                className={`block w-9 h-5 rounded-full cursor-pointer transition-colors duration-200 ${
+                    checked ? 'bg-neutral-900' : 'bg-neutral-300'
+                }`}
+            >
+                <span
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
+                        checked ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                />
+            </label>
+        </div>
+    );
+}
+
+// Toggle Row Component
+function ToggleRow({
+    label,
+    checked,
+    onChange,
+    id
+}: {
+    label: string;
+    checked: boolean;
+    onChange: (value: boolean) => void;
+    id: string;
+}) {
+    return (
+        <div className="flex items-center justify-between py-1.5">
+            <span className="text-sm text-neutral-700">{label}</span>
+            <ToggleSwitch checked={checked} onChange={onChange} id={id} />
+        </div>
+    );
+}
+
+// Collapsible Section for Highlights
 interface CollapsibleSectionProps {
     title: string;
     icon: React.ReactNode;
     isOpen: boolean;
     onToggle: () => void;
     children: React.ReactNode;
+    count?: string;
 }
 
-function CollapsibleSection({ title, icon, isOpen, onToggle, children }: CollapsibleSectionProps) {
+function CollapsibleSection({ title, icon, isOpen, onToggle, children, count }: CollapsibleSectionProps) {
     return (
-        <div className="border-b border-neutral-200">
+        <div className="border border-neutral-200 rounded-lg overflow-hidden">
             <button
                 onClick={onToggle}
-                className="w-full flex items-center gap-2 p-3 hover:bg-neutral-50 transition-colors"
+                className="w-full flex items-center gap-2 p-3 hover:bg-neutral-50 transition-colors bg-white"
             >
                 {isOpen ? <ChevronDown className="w-4 h-4 text-neutral-400" /> : <ChevronRight className="w-4 h-4 text-neutral-400" />}
                 <span className="text-neutral-500">{icon}</span>
-                <span className="text-sm font-medium">{title}</span>
+                <span className="text-sm font-medium text-neutral-700">{title}</span>
+                {count && <span className="ml-auto text-xs text-neutral-400">{count}</span>}
             </button>
             {isOpen && (
-                <div className="px-3 pb-3">
+                <div className="px-3 pb-3 bg-white border-t border-neutral-100">
                     {children}
                 </div>
             )}
@@ -141,21 +209,13 @@ export default function EditPanel({
     onToggleShading,
     shadingIntensity,
     onShadingIntensityChange,
-    // Art Mode props
-    artMode,
-    onToggleArtMode,
+    artMode: _artMode,
+    onToggleArtMode: _onToggleArtMode,
     onExportPNG,
 }: EditPanelProps) {
     // Section open/closed state
-    const [sectionsOpen, setSectionsOpen] = useState({
-        landmarks: true,
-        statbar: false,
-        design: false,
-    });
-
-    const toggleSection = (section: keyof typeof sectionsOpen) => {
-        setSectionsOpen(prev => ({ ...prev, [section]: !prev[section] }));
-    };
+    const [highlightsOpen, setHighlightsOpen] = useState(false);
+    const [statsEditOpen, setStatsEditOpen] = useState(false);
 
     // Custom landmark form state
     const [showAddForm, setShowAddForm] = useState(false);
@@ -200,6 +260,17 @@ export default function EditPanel({
         }
     };
 
+    // Helper to format date for display
+    const formatDateForDisplay = (dateStr: string): string => {
+        if (!dateStr) return '';
+        try {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch {
+            return dateStr;
+        }
+    };
+
     // Update form fields when statsDefaults loads
     React.useEffect(() => {
         if (statsDefaults) {
@@ -215,7 +286,6 @@ export default function EditPanel({
             if (!statsOverrides.elevationLoss && !elevationLoss) {
                 setElevationLoss(Math.round(statsDefaults.elevationLoss).toString());
             }
-            // Auto-fill dates from Strava if available and not already set
             if (statsDefaults.dateStart && !statsOverrides.dateStart && !dateStart) {
                 setDateStart(formatDateForInput(statsDefaults.dateStart));
             }
@@ -248,6 +318,7 @@ export default function EditPanel({
             dateStart: dateStart || undefined,
             dateEnd: isDateRange && dateEnd ? dateEnd : undefined,
         });
+        setStatsEditOpen(false);
     };
 
     const handleResetStats = () => {
@@ -288,13 +359,6 @@ export default function EditPanel({
     const handleRemoveCustomImage = () => {
         onSaveImage({
             ...imageOverride,
-            url: undefined
-        });
-    };
-
-    const handleResetImage = () => {
-        onSaveImage({
-            enabled: true,
             url: undefined
         });
     };
@@ -351,6 +415,15 @@ export default function EditPanel({
     const totalCount = landmarks.length;
     const defaultFlagUrl = countryCode ? `https://flagcdn.com/${countryCode.toLowerCase()}.svg` : null;
 
+    // Get display values for stats
+    const displayRouteName = statsOverrides.routeName || routeName || statsDefaults?.routeName || '';
+    const displayLocation = statsOverrides.location || location || '';
+    const displayDistance = statsOverrides.distance || distance || (statsDefaults?.distance.toFixed(1)) || '';
+    const displayElevationGain = statsOverrides.elevationGain || elevationGain || (statsDefaults ? Math.round(statsDefaults.elevationGain).toString() : '');
+    const displayElevationLoss = statsOverrides.elevationLoss || elevationLoss || (statsDefaults ? Math.round(statsDefaults.elevationLoss).toString() : '');
+    const displayDateStart = statsOverrides.dateStart || dateStart || '';
+    const displayDateEnd = statsOverrides.dateEnd || dateEnd || '';
+
     // Mobile drawer state
     const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -376,16 +449,16 @@ export default function EditPanel({
 
             {/* Panel - sidebar on desktop, bottom drawer on mobile */}
             <div className={`
-                lg:relative lg:w-72 lg:h-full lg:max-h-full lg:translate-y-0
-                fixed bottom-0 left-0 right-0 z-50 max-h-[70vh]
-                bg-white border-l border-neutral-200 flex flex-col flex-shrink-0 overflow-hidden
+                lg:relative lg:w-80 lg:h-full lg:max-h-full lg:translate-y-0
+                fixed bottom-0 left-0 right-0 z-50 max-h-[80vh]
+                bg-neutral-50 border-l border-neutral-200 flex flex-col flex-shrink-0 overflow-hidden
                 transition-transform duration-300 ease-out
                 ${isMobileOpen ? 'translate-y-0' : 'translate-y-full lg:translate-y-0'}
                 rounded-t-xl lg:rounded-none shadow-xl lg:shadow-none
             `}>
                 {/* Header */}
-                <div className="p-4 border-b border-neutral-200 flex items-center justify-between">
-                    <h3 className="font-semibold text-sm">Customize</h3>
+                <div className="p-4 border-b border-neutral-200 bg-white flex items-center justify-between">
+                    <h3 className="font-semibold text-base text-neutral-900">Customize</h3>
                     <button
                         onClick={() => setIsMobileOpen(false)}
                         className="lg:hidden p-1 hover:bg-neutral-100 rounded"
@@ -394,503 +467,547 @@ export default function EditPanel({
                     </button>
                 </div>
 
-                {/* Collapsible Sections */}
+                {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto">
-                    {/* Landmarks Section */}
-                    <CollapsibleSection
-                        title="Landmarks"
-                        icon={<MapPin className="w-4 h-4" />}
-                        isOpen={sectionsOpen.landmarks}
-                        onToggle={() => toggleSection('landmarks')}
-                    >
-                        <div className="space-y-2">
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={onSelectAllLandmarks}
-                                    className="flex-1 text-xs py-1.5 px-2 bg-neutral-100 hover:bg-neutral-200 rounded transition-colors"
-                                >
-                                    Select All
-                                </button>
-                                <button
-                                    onClick={onDeselectAllLandmarks}
-                                    className="flex-1 text-xs py-1.5 px-2 bg-neutral-100 hover:bg-neutral-200 rounded transition-colors"
-                                >
-                                    Deselect All
-                                </button>
-                            </div>
 
-                            {/* Add Custom Landmark */}
-                            <div className="border-t border-neutral-100 pt-2">
-                                {isPlacingLandmark ? (
-                                    <div className="space-y-2">
-                                        <p className="text-xs text-neutral-500 text-center py-2">
-                                            Click on the map to place your landmark
-                                        </p>
-                                        <button
-                                            onClick={onCancelPlacingLandmark}
-                                            className="w-full py-1.5 text-xs border border-neutral-200 text-neutral-600 rounded hover:bg-neutral-50 transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
-                                    </div>
-                                ) : !showAddForm ? (
-                                    <button
-                                        onClick={() => setShowAddForm(true)}
-                                        className="w-full flex items-center justify-center gap-2 py-2 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded transition-colors"
-                                    >
-                                        <Plus className="w-3.5 h-3.5" />
-                                        Add Custom Landmark
-                                    </button>
-                                ) : (
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs font-medium text-neutral-600">New Landmark</span>
-                                            <button onClick={handleCancelForm} className="text-xs text-neutral-400 hover:text-neutral-600">Cancel</button>
-                                        </div>
-                                        <input
-                                            type="text"
-                                            placeholder="Name (required)"
-                                            value={newLandmarkName}
-                                            onChange={(e) => setNewLandmarkName(e.target.value)}
-                                            className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                                        />
-                                        <div className="flex gap-1 flex-wrap">
-                                            {iconOptions.map(option => (
-                                                <button
-                                                    key={option.value}
-                                                    type="button"
-                                                    onClick={() => setNewLandmarkIcon(option.value)}
-                                                    className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded border transition-colors ${newLandmarkIcon === option.value
-                                                        ? 'bg-neutral-900 text-white border-neutral-900'
-                                                        : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
-                                                        }`}
-                                                >
-                                                    {getLandmarkIcon(option.value)}
-                                                    {option.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        <input
-                                            type="text"
-                                            placeholder="Elevation in meters (optional)"
-                                            value={newLandmarkElevation}
-                                            onChange={(e) => setNewLandmarkElevation(e.target.value)}
-                                            className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                                        />
-                                        <div className="flex gap-1">
-                                            <button
-                                                type="button"
-                                                onClick={() => setUseManualCoords(false)}
-                                                className={`flex-1 py-1.5 text-[10px] rounded border transition-colors ${!useManualCoords
-                                                    ? 'bg-neutral-900 text-white border-neutral-900'
-                                                    : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
-                                                    }`}
-                                            >
-                                                Click on map
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setUseManualCoords(true)}
-                                                className={`flex-1 py-1.5 text-[10px] rounded border transition-colors ${useManualCoords
-                                                    ? 'bg-neutral-900 text-white border-neutral-900'
-                                                    : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
-                                                    }`}
-                                            >
-                                                Enter coordinates
-                                            </button>
-                                        </div>
-                                        {useManualCoords ? (
-                                            <>
-                                                <div className="flex gap-2">
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Latitude"
-                                                        value={newLandmarkLat}
-                                                        onChange={(e) => setNewLandmarkLat(e.target.value)}
-                                                        className="flex-1 px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Longitude"
-                                                        value={newLandmarkLng}
-                                                        onChange={(e) => setNewLandmarkLng(e.target.value)}
-                                                        className="flex-1 px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                                                    />
-                                                </div>
-                                                <button
-                                                    onClick={handleAddWithCoords}
-                                                    disabled={!newLandmarkName.trim() || !newLandmarkLat || !newLandmarkLng}
-                                                    className="w-full py-1.5 text-xs bg-neutral-900 text-white rounded hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
-                                                >
-                                                    Add Landmark
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <button
-                                                onClick={handleStartPlacing}
-                                                disabled={!newLandmarkName.trim()}
-                                                className="w-full py-1.5 text-xs bg-neutral-900 text-white rounded hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
-                                            >
-                                                Click on map to place
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
+                    {/* ========== SECTION 1: Route ========== */}
+                    <div className="p-4 bg-white border-b border-neutral-200">
+                        <SectionHeader emoji="📍" title="Route" />
 
-                            {/* Landmarks List */}
-                            <div className="border-t border-neutral-100 pt-2 max-h-48 overflow-y-auto">
-                                <p className="text-xs text-neutral-400 mb-2">
-                                    {selectedCount} of {totalCount} selected
-                                </p>
-                                {landmarks.length === 0 ? (
-                                    <p className="text-xs text-neutral-400 text-center py-4">
-                                        No landmarks found near this route
-                                    </p>
-                                ) : (
-                                    <div className="space-y-1">
-                                        {landmarks.map(landmark => (
-                                            <div
-                                                key={landmark.id}
-                                                className={`flex items-center gap-2 p-1.5 rounded transition-colors ${selectedLandmarkIds.has(landmark.id)
-                                                    ? 'bg-neutral-100'
-                                                    : 'hover:bg-neutral-50'
-                                                    }`}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedLandmarkIds.has(landmark.id)}
-                                                    onChange={() => onToggleLandmark(landmark.id)}
-                                                    className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500 cursor-pointer"
-                                                />
-                                                <span className="text-neutral-400">
-                                                    {getLandmarkIcon(landmark.type)}
-                                                </span>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-xs font-medium truncate">
-                                                        {landmark.name}
-                                                        {landmark.isCustom && (
-                                                            <span className="ml-1 text-[9px] px-1 py-0.5 bg-neutral-200 text-neutral-500 rounded">
-                                                                custom
-                                                            </span>
-                                                        )}
-                                                    </p>
-                                                </div>
-                                                {landmark.isCustom && (
-                                                    <button
-                                                        onClick={() => onDeleteCustomLandmark(landmark.id)}
-                                                        className="p-0.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                                                    >
-                                                        <Trash2 className="w-3 h-3" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </CollapsibleSection>
-
-                    {/* Stats Section */}
-                    <CollapsibleSection
-                        title="Stats"
-                        icon={<Mountain className="w-4 h-4" />}
-                        isOpen={sectionsOpen.statbar}
-                        onToggle={() => toggleSection('statbar')}
-                    >
                         {!statsDefaults ? (
-                            <p className="text-xs text-neutral-400 text-center py-4">Loading...</p>
+                            <p className="text-sm text-neutral-400 text-center py-4">Loading route info...</p>
                         ) : (
                             <div className="space-y-3">
-                                <div>
-                                    <label className="block text-xs font-medium text-neutral-600 mb-1">Route Name</label>
-                                    <input
-                                        type="text"
-                                        value={routeName}
-                                        onChange={(e) => setRouteName(e.target.value)}
-                                        className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-neutral-600 mb-1">Location</label>
-                                    <input
-                                        type="text"
-                                        value={location}
-                                        onChange={(e) => setLocation(e.target.value)}
-                                        placeholder="e.g. Albanian Alps, Albania"
-                                        className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                                    />
-                                </div>
-                                <div className="flex gap-2">
-                                    <div className="flex-1">
-                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Distance (km)</label>
-                                        <input
-                                            type="text"
-                                            value={distance}
-                                            onChange={(e) => setDistance(e.target.value)}
-                                            className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <div className="flex-1">
-                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Gain (m)</label>
-                                        <input
-                                            type="text"
-                                            value={elevationGain}
-                                            onChange={(e) => setElevationGain(e.target.value)}
-                                            className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                                        />
-                                    </div>
-                                    <div className="flex-1">
-                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Loss (m)</label>
-                                        <input
-                                            type="text"
-                                            value={elevationLoss}
-                                            onChange={(e) => setElevationLoss(e.target.value)}
-                                            className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-neutral-600 mb-1">Date</label>
-                                    <div className="flex gap-1 mb-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsDateRange(false)}
-                                            className={`flex-1 py-1 text-[10px] rounded border transition-colors ${!isDateRange
-                                                ? 'bg-neutral-900 text-white border-neutral-900'
-                                                : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
-                                                }`}
-                                        >
-                                            Single date
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsDateRange(true)}
-                                            className={`flex-1 py-1 text-[10px] rounded border transition-colors ${isDateRange
-                                                ? 'bg-neutral-900 text-white border-neutral-900'
-                                                : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
-                                                }`}
-                                        >
-                                            Date range
-                                        </button>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="date"
-                                            value={dateStart}
-                                            onChange={(e) => setDateStart(e.target.value)}
-                                            className="flex-1 px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                                        />
-                                        {isDateRange && (
-                                            <>
-                                                <span className="flex items-center text-neutral-400 text-xs">–</span>
-                                                <input
-                                                    type="date"
-                                                    value={dateEnd}
-                                                    onChange={(e) => setDateEnd(e.target.value)}
-                                                    className="flex-1 px-2 py-1.5 text-xs border border-neutral-200 rounded focus:outline-none focus:ring-1 focus:ring-neutral-400"
-                                                />
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={handleSaveStats}
-                                        className="flex-1 py-1.5 text-xs bg-neutral-900 text-white rounded hover:bg-neutral-800 transition-colors"
-                                    >
-                                        Save Changes
-                                    </button>
-                                    <button
-                                        onClick={handleResetStats}
-                                        className="py-1.5 px-3 text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
-                                    >
-                                        Reset
-                                    </button>
+                                {/* Route Name & Location - editable on click */}
+                                <div className="space-y-1">
+                                    <p className="text-base font-medium text-neutral-900">{displayRouteName || 'Untitled Route'}</p>
+                                    {displayLocation && (
+                                        <p className="text-sm text-neutral-500">{displayLocation}</p>
+                                    )}
                                 </div>
 
-                                {/* Image subsection */}
-                                <div className="border-t border-neutral-100 pt-3 mt-3">
-                                    <label className="flex items-center gap-2 cursor-pointer mb-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={imageOverride.enabled}
-                                            onChange={(e) => handleToggleImageEnabled(e.target.checked)}
-                                            className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
-                                        />
-                                        <span className="text-xs text-neutral-700">Show image/flag</span>
-                                    </label>
-                                    {imageOverride.enabled && (
-                                        <>
-                                            <div className="mb-2">
-                                                {imageOverride.url ? (
-                                                    <div className="flex items-center gap-2 p-2 bg-neutral-50 rounded border border-neutral-100">
-                                                        <img src={imageOverride.url} alt="Custom" className="h-8 w-auto rounded" />
-                                                        <span className="text-[10px] text-neutral-500 flex-1">Custom image</span>
-                                                        <button onClick={handleRemoveCustomImage} className="p-1 text-neutral-400 hover:text-red-500">
-                                                            <Trash2 className="w-3 h-3" />
-                                                        </button>
-                                                    </div>
-                                                ) : defaultFlagUrl ? (
-                                                    <div className="flex items-center gap-2 p-2 bg-neutral-50 rounded border border-neutral-100">
-                                                        <img src={defaultFlagUrl} alt="Flag" className="h-8 w-auto rounded" />
-                                                        <span className="text-[10px] text-neutral-500">{countryCode} flag</span>
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-[10px] text-neutral-400 p-2 bg-neutral-50 rounded border border-neutral-100">No country detected</p>
+                                {/* Stats Grid */}
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="bg-neutral-50 rounded-lg p-2.5 text-center">
+                                        <p className="text-xs text-neutral-500 mb-0.5">Distance</p>
+                                        <p className="text-sm font-semibold text-neutral-900">{displayDistance} km</p>
+                                    </div>
+                                    <div className="bg-neutral-50 rounded-lg p-2.5 text-center">
+                                        <p className="text-xs text-neutral-500 mb-0.5">Elevation +</p>
+                                        <p className="text-sm font-semibold text-neutral-900">{displayElevationGain} m</p>
+                                    </div>
+                                    <div className="bg-neutral-50 rounded-lg p-2.5 text-center">
+                                        <p className="text-xs text-neutral-500 mb-0.5">Elevation -</p>
+                                        <p className="text-sm font-semibold text-neutral-900">{displayElevationLoss} m</p>
+                                    </div>
+                                </div>
+
+                                {/* Date */}
+                                {(displayDateStart || displayDateEnd) && (
+                                    <p className="text-sm text-neutral-500">
+                                        {formatDateForDisplay(displayDateStart)}
+                                        {displayDateEnd && displayDateEnd !== displayDateStart && (
+                                            <> – {formatDateForDisplay(displayDateEnd)}</>
+                                        )}
+                                    </p>
+                                )}
+
+                                {/* Edit Stats Button */}
+                                <button
+                                    onClick={() => setStatsEditOpen(!statsEditOpen)}
+                                    className="text-xs text-neutral-500 hover:text-neutral-700 transition-colors"
+                                >
+                                    {statsEditOpen ? 'Cancel editing' : 'Edit details'}
+                                </button>
+
+                                {/* Inline Stats Editor */}
+                                {statsEditOpen && (
+                                    <div className="mt-3 p-3 bg-neutral-50 rounded-lg space-y-3 border border-neutral-200">
+                                        <div>
+                                            <label className="block text-xs font-medium text-neutral-600 mb-1">Route Name</label>
+                                            <input
+                                                type="text"
+                                                value={routeName}
+                                                onChange={(e) => setRouteName(e.target.value)}
+                                                className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-neutral-600 mb-1">Location</label>
+                                            <input
+                                                type="text"
+                                                value={location}
+                                                onChange={(e) => setLocation(e.target.value)}
+                                                placeholder="e.g. Albanian Alps, Albania"
+                                                className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <div>
+                                                <label className="block text-xs font-medium text-neutral-600 mb-1">Distance (km)</label>
+                                                <input
+                                                    type="text"
+                                                    value={distance}
+                                                    onChange={(e) => setDistance(e.target.value)}
+                                                    className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-neutral-600 mb-1">Gain (m)</label>
+                                                <input
+                                                    type="text"
+                                                    value={elevationGain}
+                                                    onChange={(e) => setElevationGain(e.target.value)}
+                                                    className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-neutral-600 mb-1">Loss (m)</label>
+                                                <input
+                                                    type="text"
+                                                    value={elevationLoss}
+                                                    onChange={(e) => setElevationLoss(e.target.value)}
+                                                    className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-neutral-600 mb-1">Date</label>
+                                            <div className="flex gap-1 mb-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsDateRange(false)}
+                                                    className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${!isDateRange
+                                                        ? 'bg-neutral-900 text-white border-neutral-900'
+                                                        : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                    }`}
+                                                >
+                                                    Single date
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsDateRange(true)}
+                                                    className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${isDateRange
+                                                        ? 'bg-neutral-900 text-white border-neutral-900'
+                                                        : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                    }`}
+                                                >
+                                                    Date range
+                                                </button>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="date"
+                                                    value={dateStart}
+                                                    onChange={(e) => setDateStart(e.target.value)}
+                                                    className="flex-1 px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                                />
+                                                {isDateRange && (
+                                                    <>
+                                                        <span className="flex items-center text-neutral-400 text-sm">–</span>
+                                                        <input
+                                                            type="date"
+                                                            value={dateEnd}
+                                                            onChange={(e) => setDateEnd(e.target.value)}
+                                                            className="flex-1 px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                                        />
+                                                    </>
                                                 )}
                                             </div>
-                                            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                                        </div>
+                                        <div className="flex gap-2 pt-1">
                                             <button
-                                                onClick={() => fileInputRef.current?.click()}
-                                                className="w-full flex items-center justify-center gap-2 px-3 py-1.5 border border-dashed border-neutral-200 rounded text-xs text-neutral-600 hover:border-neutral-400 hover:bg-neutral-50"
+                                                onClick={handleSaveStats}
+                                                className="flex-1 py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 transition-colors font-medium"
                                             >
-                                                <Upload className="w-3 h-3" />
-                                                Upload custom image
+                                                Save
                                             </button>
-                                            {imageOverride.url && (
-                                                <button onClick={handleResetImage} className="text-[10px] text-neutral-500 hover:text-neutral-700 mt-1">
-                                                    Reset to default flag
+                                            <button
+                                                onClick={handleResetStats}
+                                                className="py-2 px-3 text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
+                                            >
+                                                Reset
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Highlights (Landmarks) - Collapsible */}
+                                <div className="pt-2">
+                                    <CollapsibleSection
+                                        title="Highlights"
+                                        icon={<MapPin className="w-4 h-4" />}
+                                        isOpen={highlightsOpen}
+                                        onToggle={() => setHighlightsOpen(!highlightsOpen)}
+                                        count={`${selectedCount}/${totalCount}`}
+                                    >
+                                        <div className="space-y-2 pt-2">
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={onSelectAllLandmarks}
+                                                    className="flex-1 text-xs py-1.5 px-2 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
+                                                >
+                                                    Select All
                                                 </button>
-                                            )}
-                                        </>
-                                    )}
+                                                <button
+                                                    onClick={onDeselectAllLandmarks}
+                                                    className="flex-1 text-xs py-1.5 px-2 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
+                                                >
+                                                    Deselect All
+                                                </button>
+                                            </div>
+
+                                            {/* Add Custom Landmark */}
+                                            <div className="border-t border-neutral-100 pt-2">
+                                                {isPlacingLandmark ? (
+                                                    <div className="space-y-2">
+                                                        <p className="text-xs text-neutral-500 text-center py-2">
+                                                            Click on the map to place your highlight
+                                                        </p>
+                                                        <button
+                                                            onClick={onCancelPlacingLandmark}
+                                                            className="w-full py-1.5 text-xs border border-neutral-200 text-neutral-600 rounded-lg hover:bg-neutral-50 transition-colors"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                ) : !showAddForm ? (
+                                                    <button
+                                                        onClick={() => setShowAddForm(true)}
+                                                        className="w-full flex items-center justify-center gap-2 py-2 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded-lg transition-colors"
+                                                    >
+                                                        <Plus className="w-3.5 h-3.5" />
+                                                        Add highlight
+                                                    </button>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs font-medium text-neutral-600">New Highlight</span>
+                                                            <button onClick={handleCancelForm} className="text-xs text-neutral-400 hover:text-neutral-600">Cancel</button>
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Name (required)"
+                                                            value={newLandmarkName}
+                                                            onChange={(e) => setNewLandmarkName(e.target.value)}
+                                                            className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                                                        />
+                                                        <div className="flex gap-1 flex-wrap">
+                                                            {iconOptions.map(option => (
+                                                                <button
+                                                                    key={option.value}
+                                                                    type="button"
+                                                                    onClick={() => setNewLandmarkIcon(option.value)}
+                                                                    className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded-lg border transition-colors ${newLandmarkIcon === option.value
+                                                                        ? 'bg-neutral-900 text-white border-neutral-900'
+                                                                        : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                                    }`}
+                                                                >
+                                                                    {getLandmarkIcon(option.value)}
+                                                                    {option.label}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Elevation in meters (optional)"
+                                                            value={newLandmarkElevation}
+                                                            onChange={(e) => setNewLandmarkElevation(e.target.value)}
+                                                            className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                                                        />
+                                                        <div className="flex gap-1">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setUseManualCoords(false)}
+                                                                className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${!useManualCoords
+                                                                    ? 'bg-neutral-900 text-white border-neutral-900'
+                                                                    : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                                }`}
+                                                            >
+                                                                Click on map
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setUseManualCoords(true)}
+                                                                className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${useManualCoords
+                                                                    ? 'bg-neutral-900 text-white border-neutral-900'
+                                                                    : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                                }`}
+                                                            >
+                                                                Enter coordinates
+                                                            </button>
+                                                        </div>
+                                                        {useManualCoords ? (
+                                                            <>
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Latitude"
+                                                                        value={newLandmarkLat}
+                                                                        onChange={(e) => setNewLandmarkLat(e.target.value)}
+                                                                        className="flex-1 px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                                                                    />
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Longitude"
+                                                                        value={newLandmarkLng}
+                                                                        onChange={(e) => setNewLandmarkLng(e.target.value)}
+                                                                        className="flex-1 px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                                                                    />
+                                                                </div>
+                                                                <button
+                                                                    onClick={handleAddWithCoords}
+                                                                    disabled={!newLandmarkName.trim() || !newLandmarkLat || !newLandmarkLng}
+                                                                    className="w-full py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                                                                >
+                                                                    Add Highlight
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <button
+                                                                onClick={handleStartPlacing}
+                                                                disabled={!newLandmarkName.trim()}
+                                                                className="w-full py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                                                            >
+                                                                Click on map to place
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Landmarks List */}
+                                            <div className="border-t border-neutral-100 pt-2 max-h-40 overflow-y-auto">
+                                                {landmarks.length === 0 ? (
+                                                    <p className="text-xs text-neutral-400 text-center py-4">
+                                                        No highlights found near this route
+                                                    </p>
+                                                ) : (
+                                                    <div className="space-y-1">
+                                                        {landmarks.map(landmark => (
+                                                            <div
+                                                                key={landmark.id}
+                                                                className={`flex items-center gap-2 p-1.5 rounded-lg transition-colors ${selectedLandmarkIds.has(landmark.id)
+                                                                    ? 'bg-neutral-100'
+                                                                    : 'hover:bg-neutral-50'
+                                                                }`}
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedLandmarkIds.has(landmark.id)}
+                                                                    onChange={() => onToggleLandmark(landmark.id)}
+                                                                    className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500 cursor-pointer"
+                                                                />
+                                                                <span className="text-neutral-400">
+                                                                    {getLandmarkIcon(landmark.type)}
+                                                                </span>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-xs font-medium truncate">
+                                                                        {landmark.name}
+                                                                        {landmark.isCustom && (
+                                                                            <span className="ml-1 text-[9px] px-1 py-0.5 bg-neutral-200 text-neutral-500 rounded">
+                                                                                custom
+                                                                            </span>
+                                                                        )}
+                                                                    </p>
+                                                                </div>
+                                                                {landmark.isCustom && (
+                                                                    <button
+                                                                        onClick={() => onDeleteCustomLandmark(landmark.id)}
+                                                                        className="p-0.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                                    >
+                                                                        <Trash2 className="w-3 h-3" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </CollapsibleSection>
                                 </div>
                             </div>
                         )}
-                    </CollapsibleSection>
+                    </div>
 
-                    {/* Design Section */}
-                    <CollapsibleSection
-                        title="Design"
-                        icon={<Droplets className="w-4 h-4" />}
-                        isOpen={sectionsOpen.design}
-                        onToggle={() => toggleSection('design')}
-                    >
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs text-neutral-700">Water shading</span>
-                                <input
-                                    type="checkbox"
+                    {/* ========== SECTION 2: Appearance (FEATURED) ========== */}
+                    <div className="p-4">
+                        <SectionHeader emoji="🎨" title="Appearance" />
+
+                        {/* Featured Card */}
+                        <div className="bg-white rounded-xl p-4 border border-neutral-200 shadow-sm space-y-4">
+                            {/* Theme Toggles */}
+                            <div className="space-y-1">
+                                <ToggleRow
+                                    label="Dark theme"
+                                    checked={isDarkMode}
+                                    onChange={onToggleDarkMode}
+                                    id="darkTheme"
+                                />
+                                <ToggleRow
+                                    label="Show water"
                                     checked={showWater}
-                                    onChange={(e) => onToggleWater(e.target.checked)}
-                                    className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
+                                    onChange={onToggleWater}
+                                    id="showWater"
+                                />
+                                <ToggleRow
+                                    label="Relief shading"
+                                    checked={showShading}
+                                    onChange={onToggleShading}
+                                    id="reliefShading"
                                 />
                             </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs text-neutral-700">Start/End markers</span>
-                                <input
-                                    type="checkbox"
+
+                            {/* Relief Strength Slider - Only visible when shading is ON */}
+                            {showShading && (
+                                <div className="pt-2 border-t border-neutral-100">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm text-neutral-700">Relief strength</span>
+                                        <span className="text-xs text-neutral-400 tabular-nums">{Math.round(shadingIntensity * 100)}%</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.05"
+                                        value={shadingIntensity}
+                                        onChange={(e) => onShadingIntensityChange(parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-neutral-200 rounded-full appearance-none cursor-pointer accent-neutral-900"
+                                    />
+                                    <p className="text-xs text-neutral-400 mt-1.5">Controls how dramatic the terrain looks</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* ========== SECTION 3: Details ========== */}
+                    <div className="p-4 pt-0">
+                        <SectionHeader emoji="✏️" title="Details" />
+
+                        <div className="space-y-3">
+                            {/* Start & Finish Dots */}
+                            <div className="flex items-center justify-between py-1">
+                                <span className="text-sm text-neutral-600">Start & finish dots</span>
+                                <ToggleSwitch
                                     checked={showMarkers}
-                                    onChange={(e) => onToggleMarkers(e.target.checked)}
-                                    className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
+                                    onChange={onToggleMarkers}
+                                    id="startFinishDots"
                                 />
                             </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs text-neutral-700">Orientation</span>
+
+                            {/* Flag Badge */}
+                            <div className="flex items-center justify-between py-1">
+                                <span className="text-sm text-neutral-600">Flag badge</span>
+                                <ToggleSwitch
+                                    checked={imageOverride.enabled}
+                                    onChange={handleToggleImageEnabled}
+                                    id="flagBadge"
+                                />
+                            </div>
+
+                            {/* Custom Image Upload (only when flag badge is enabled) */}
+                            {imageOverride.enabled && (
+                                <div className="pl-0 pt-1">
+                                    {imageOverride.url ? (
+                                        <div className="flex items-center gap-2 p-2 bg-neutral-50 rounded-lg border border-neutral-100">
+                                            <img src={imageOverride.url} alt="Custom" className="h-8 w-auto rounded" />
+                                            <span className="text-xs text-neutral-500 flex-1">Custom image</span>
+                                            <button onClick={handleRemoveCustomImage} className="p-1 text-neutral-400 hover:text-red-500">
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ) : defaultFlagUrl ? (
+                                        <div className="flex items-center gap-2 p-2 bg-neutral-50 rounded-lg border border-neutral-100">
+                                            <img src={defaultFlagUrl} alt="Flag" className="h-8 w-auto rounded" />
+                                            <span className="text-xs text-neutral-500">{countryCode} flag (auto-detected)</span>
+                                        </div>
+                                    ) : null}
+                                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2 border border-dashed border-neutral-300 rounded-lg text-xs text-neutral-600 hover:border-neutral-400 hover:bg-neutral-50 transition-colors"
+                                    >
+                                        <Upload className="w-3 h-3" />
+                                        Upload custom image
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Layout */}
+                            <div className="flex items-center justify-between py-1">
+                                <span className="text-sm text-neutral-600">Layout</span>
                                 <div className="flex gap-1">
                                     <button
                                         onClick={() => onToggleOrientation(false)}
-                                        className={`px-2 py-1 text-[10px] rounded border transition-colors ${!isPortrait
+                                        className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${!isPortrait
                                             ? 'bg-neutral-900 text-white border-neutral-900'
                                             : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
-                                            }`}
+                                        }`}
                                     >
                                         Landscape
                                     </button>
                                     <button
                                         onClick={() => onToggleOrientation(true)}
-                                        className={`px-2 py-1 text-[10px] rounded border transition-colors ${isPortrait
+                                        className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${isPortrait
                                             ? 'bg-neutral-900 text-white border-neutral-900'
                                             : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
-                                            }`}
+                                        }`}
                                     >
                                         Portrait
                                     </button>
                                 </div>
                             </div>
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Palette className="w-3.5 h-3.5 text-neutral-500" />
-                                    <span className="text-xs font-medium text-neutral-900">Art Mode</span>
-                                </div>
-                                <div className="relative inline-block w-8 h-4 align-middle select-none transition duration-200 ease-in">
-                                    <input
-                                        type="checkbox"
-                                        name="artMode"
-                                        id="artMode"
-                                        checked={artMode}
-                                        onChange={(e) => onToggleArtMode(e.target.checked)}
-                                        className="toggle-checkbox absolute block w-4 h-4 rounded-full bg-white border-2 appearance-none cursor-pointer peer checked:right-0 right-4 border-neutral-300 transition-all duration-200"
-                                    />
-                                    <label
-                                        htmlFor="artMode"
-                                        className={`toggle-label block overflow-hidden h-4 rounded-full cursor-pointer transition-colors duration-200 ${artMode ? 'bg-neutral-900' : 'bg-neutral-300'}`}
-                                    ></label>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs text-neutral-700">Dark mode</span>
-                                <input
-                                    type="checkbox"
-                                    checked={isDarkMode}
-                                    onChange={(e) => onToggleDarkMode(e.target.checked)}
-                                    className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
-                                />
-                            </div>
-
-                            <div className="border-t border-neutral-100 pt-3 mt-1">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-xs font-medium text-neutral-700">Terrain Shading</span>
-                                    <input
-                                        type="checkbox"
-                                        checked={showShading}
-                                        onChange={(e) => onToggleShading(e.target.checked)}
-                                        className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
-                                    />
-                                </div>
-                                {showShading && (
-                                    <div className="space-y-1.5 ml-1">
-                                        <div className="flex justify-between">
-                                            <label className="text-[10px] text-neutral-500">Shading Intensity</label>
-                                            <span className="text-[10px] text-neutral-400">{Math.round(shadingIntensity * 100)}%</span>
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="1"
-                                            step="0.05"
-                                            value={shadingIntensity}
-                                            onChange={(e) => onShadingIntensityChange(parseFloat(e.target.value))}
-                                            className="w-full h-1 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
-                                        />
-                                    </div>
-                                )}
-                            </div>
                         </div>
-                    </CollapsibleSection>
+                    </div>
 
                 </div>
 
-                {/* Download */}
-                <div className="p-3 border-t border-neutral-200 space-y-2">
+                {/* ========== SECTION 4: Export (Sticky Bottom) ========== */}
+                <div className="p-4 border-t border-neutral-200 bg-white space-y-3">
+                    <SectionHeader emoji="⬇️" title="Export" />
+
+                    {/* Primary Button */}
                     <button
                         onClick={handleDownloadPNG}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 border border-neutral-300 text-neutral-900 text-sm font-medium rounded-lg hover:bg-neutral-50 transition-colors"
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-neutral-800 transition-colors shadow-sm"
                     >
                         <Download className="w-4 h-4" />
-                        Download PNG
+                        Download Image
                     </button>
+
+                    {/* Secondary Buttons */}
+                    <div className="grid grid-cols-3 gap-2">
+                        <button
+                            disabled
+                            className="flex flex-col items-center justify-center gap-1 py-2.5 px-2 border border-neutral-200 text-neutral-400 text-xs rounded-lg cursor-not-allowed"
+                        >
+                            <Printer className="w-4 h-4" />
+                            <span>Print PDF</span>
+                        </button>
+                        <button
+                            disabled
+                            className="flex flex-col items-center justify-center gap-1 py-2.5 px-2 border border-neutral-200 text-neutral-400 text-xs rounded-lg cursor-not-allowed"
+                        >
+                            <ShoppingBag className="w-4 h-4" />
+                            <span>Buy Print</span>
+                        </button>
+                        <a
+                            href="https://ko-fi.com/aligrant"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex flex-col items-center justify-center gap-1 py-2.5 px-2 border border-neutral-200 text-neutral-600 text-xs rounded-lg hover:bg-neutral-50 hover:border-neutral-300 transition-colors"
+                        >
+                            <Coffee className="w-4 h-4" />
+                            <span>Tip</span>
+                        </a>
+                    </div>
                 </div>
 
                 {/* Tip Modal */}
                 {showTipModal && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-xl shadow-xl max-w-sm mx-4 overflow-hidden">
+                        <div className="bg-white rounded-xl shadow-xl max-w-sm mx-4 overflow-hidden relative">
                             <div className="p-6 text-center">
                                 <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <Heart className="w-6 h-6 text-pink-500" />
