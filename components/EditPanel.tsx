@@ -171,27 +171,57 @@ function TourOverlay({
 
     const tooltipStyle = getTooltipPosition();
 
-    return (
-        <div className="fixed inset-0 z-[200]">
-            {/* Dark overlay with cutout for highlighted section */}
-            <div className="absolute inset-0 bg-black/60" onClick={onSkip} />
+    // Generate clip-path to cut out the highlighted section from the overlay
+    const getClipPath = () => {
+        if (!targetRect) return 'none';
 
-            {/* Highlighted section - sits above the overlay */}
+        const padding = 8; // Extra padding around the cutout
+        const top = targetRect.top - padding;
+        const left = targetRect.left - padding;
+        const right = targetRect.right + padding;
+        const bottom = targetRect.bottom + padding;
+
+        // Create a polygon that covers the entire screen except for the cutout area
+        // This uses CSS clip-path with a polygon that draws the screen outline, then cuts inward
+        return `polygon(
+            0% 0%,
+            0% 100%,
+            ${left}px 100%,
+            ${left}px ${top}px,
+            ${right}px ${top}px,
+            ${right}px ${bottom}px,
+            ${left}px ${bottom}px,
+            ${left}px 100%,
+            100% 100%,
+            100% 0%
+        )`;
+    };
+
+    return (
+        <div className="fixed inset-0 z-[200] pointer-events-none">
+            {/* Dark overlay with cutout for highlighted section */}
+            <div
+                className="absolute inset-0 bg-black/60 pointer-events-auto transition-all duration-300"
+                onClick={onSkip}
+                style={{ clipPath: getClipPath() }}
+            />
+
+            {/* Highlight ring around the cutout area */}
             {targetRect && (
                 <div
-                    className="absolute bg-white rounded-lg shadow-2xl ring-4 ring-blue-500 ring-offset-2 pointer-events-none"
+                    className="absolute rounded-lg ring-4 ring-blue-500 ring-offset-4 ring-offset-transparent pointer-events-none transition-all duration-300"
                     style={{
-                        top: targetRect.top - 4,
-                        left: targetRect.left - 4,
-                        width: targetRect.width + 8,
-                        height: targetRect.height + 8,
+                        top: targetRect.top - 8,
+                        left: targetRect.left - 8,
+                        width: targetRect.width + 16,
+                        height: targetRect.height + 16,
                     }}
                 />
             )}
 
             {/* Tooltip card */}
             <div
-                className="absolute w-80 bg-white rounded-xl shadow-2xl p-5 animate-in fade-in slide-in-from-right-4 duration-300"
+                className="absolute w-80 bg-white rounded-xl shadow-2xl p-5 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto"
                 style={tooltipStyle as React.CSSProperties}
             >
                 {/* Progress indicator */}
