@@ -1,8 +1,8 @@
 // components/EditPanel.tsx
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { ChevronDown, ChevronRight, ChevronUp, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star, Download, Heart, X, Settings, Printer, ShoppingBag, Coffee } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ChevronDown, ChevronRight, ChevronUp, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star, Download, Heart, X, Settings, Printer, ShoppingBag, Coffee, ArrowRight } from 'lucide-react';
 import { Landmark } from '@/lib/landmarks';
 
 export interface StatsOverrides {
@@ -89,6 +89,148 @@ function SectionHeader({ title }: { title: string }) {
     return (
         <div className="mb-3">
             <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{title}</h4>
+        </div>
+    );
+}
+
+// Tour steps configuration
+const TOUR_STEPS = [
+    {
+        target: 'route-section',
+        title: 'Route Info',
+        description: 'Edit your route name, location, distance, and date. Click "Edit route details" to customize what appears on your map.',
+    },
+    {
+        target: 'appearance-section',
+        title: 'Appearance',
+        description: 'Change how your map looks. Toggle dark theme, show water features, or add terrain relief shading for a dramatic effect.',
+    },
+    {
+        target: 'details-section',
+        title: 'Details',
+        description: 'Fine-tune your map. Show start/finish markers, add a country flag, or switch between landscape and portrait layouts.',
+    },
+    {
+        target: 'export-section',
+        title: 'Export',
+        description: 'When you\'re happy with your design, download your map as a high-quality PNG image to print or share.',
+    },
+];
+
+// Full-screen Tour Overlay Component
+function TourOverlay({
+    steps,
+    currentStep,
+    onNext,
+    onSkip,
+}: {
+    steps: typeof TOUR_STEPS;
+    currentStep: number;
+    onNext: () => void;
+    onSkip: () => void;
+}) {
+    const step = steps[currentStep];
+    const isLast = currentStep === steps.length - 1;
+    const targetRef = useRef<HTMLElement | null>(null);
+    const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+
+    useEffect(() => {
+        // Find the target element
+        const target = document.getElementById(step.target);
+        if (target) {
+            targetRef.current = target;
+            setTargetRect(target.getBoundingClientRect());
+
+            // Scroll the target into view
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, [step.target, currentStep]);
+
+    // Calculate tooltip position
+    const getTooltipPosition = () => {
+        if (!targetRect) return { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+
+        // Position to the left of the panel on desktop
+        const isMobile = window.innerWidth < 1024;
+
+        if (isMobile) {
+            // Position above the target on mobile
+            return {
+                bottom: `${window.innerHeight - targetRect.top + 16}px`,
+                left: '16px',
+                right: '16px',
+            };
+        }
+
+        // Position to the left of the target on desktop
+        return {
+            top: `${targetRect.top}px`,
+            right: `${window.innerWidth - targetRect.left + 16}px`,
+        };
+    };
+
+    const tooltipStyle = getTooltipPosition();
+
+    return (
+        <div className="fixed inset-0 z-[200]">
+            {/* Dark overlay with cutout for highlighted section */}
+            <div className="absolute inset-0 bg-black/60" onClick={onSkip} />
+
+            {/* Highlighted section - sits above the overlay */}
+            {targetRect && (
+                <div
+                    className="absolute bg-white rounded-lg shadow-2xl ring-4 ring-blue-500 ring-offset-2 pointer-events-none"
+                    style={{
+                        top: targetRect.top - 4,
+                        left: targetRect.left - 4,
+                        width: targetRect.width + 8,
+                        height: targetRect.height + 8,
+                    }}
+                />
+            )}
+
+            {/* Tooltip card */}
+            <div
+                className="absolute w-80 bg-white rounded-xl shadow-2xl p-5 animate-in fade-in slide-in-from-right-4 duration-300"
+                style={tooltipStyle as React.CSSProperties}
+            >
+                {/* Progress indicator */}
+                <div className="flex items-center gap-1.5 mb-4">
+                    {steps.map((_, i) => (
+                        <div
+                            key={i}
+                            className={`h-1.5 rounded-full transition-all ${
+                                i === currentStep
+                                    ? 'w-6 bg-blue-600'
+                                    : i < currentStep
+                                    ? 'w-1.5 bg-blue-300'
+                                    : 'w-1.5 bg-neutral-200'
+                            }`}
+                        />
+                    ))}
+                </div>
+
+                {/* Content */}
+                <h3 className="text-lg font-semibold text-neutral-900 mb-2">{step.title}</h3>
+                <p className="text-sm text-neutral-600 leading-relaxed mb-5">{step.description}</p>
+
+                {/* Actions */}
+                <div className="flex items-center justify-between">
+                    <button
+                        onClick={onSkip}
+                        className="text-sm text-neutral-400 hover:text-neutral-600 transition-colors"
+                    >
+                        Skip tour
+                    </button>
+                    <button
+                        onClick={onNext}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        {isLast ? 'Get Started' : 'Next'}
+                        <ArrowRight className="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
@@ -212,6 +354,35 @@ export default function EditPanel({
     onToggleArtMode: _onToggleArtMode,
     onExportPNG,
 }: EditPanelProps) {
+    // Tour state
+    const [showTour, setShowTour] = useState(false);
+    const [tourStep, setTourStep] = useState(0);
+
+    // Check if user has seen the tour before
+    useEffect(() => {
+        const hasSeenTour = localStorage.getItem('routeArt_hasSeenTour');
+        if (!hasSeenTour) {
+            // Small delay so the UI renders first
+            const timer = setTimeout(() => setShowTour(true), 500);
+            return () => clearTimeout(timer);
+        }
+    }, []);
+
+    const handleNextTourStep = () => {
+        if (tourStep < TOUR_STEPS.length - 1) {
+            setTourStep(tourStep + 1);
+        } else {
+            // Tour complete
+            setShowTour(false);
+            localStorage.setItem('routeArt_hasSeenTour', 'true');
+        }
+    };
+
+    const handleSkipTour = () => {
+        setShowTour(false);
+        localStorage.setItem('routeArt_hasSeenTour', 'true');
+    };
+
     // Section open/closed state
     const [highlightsOpen, setHighlightsOpen] = useState(false);
     const [statsEditOpen, setStatsEditOpen] = useState(false);
@@ -446,6 +617,16 @@ export default function EditPanel({
                 />
             )}
 
+            {/* Tour overlay */}
+            {showTour && (
+                <TourOverlay
+                    steps={TOUR_STEPS}
+                    currentStep={tourStep}
+                    onNext={handleNextTourStep}
+                    onSkip={handleSkipTour}
+                />
+            )}
+
             {/* Panel - sidebar on desktop, bottom drawer on mobile */}
             <div className={`
                 lg:relative lg:w-80 lg:h-full lg:max-h-full lg:translate-y-0
@@ -461,19 +642,28 @@ export default function EditPanel({
                         <h3 className="font-semibold text-base text-neutral-900">Customize</h3>
                         <p className="text-xs text-neutral-400 mt-0.5">Adjust your map below</p>
                     </div>
-                    <button
-                        onClick={() => setIsMobileOpen(false)}
-                        className="lg:hidden p-1 hover:bg-neutral-100 rounded"
-                    >
-                        <X className="w-5 h-5 text-neutral-500" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => { setTourStep(0); setShowTour(true); }}
+                            className="hidden lg:block text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+                            title="Show guided tour"
+                        >
+                            ?
+                        </button>
+                        <button
+                            onClick={() => setIsMobileOpen(false)}
+                            className="lg:hidden p-1 hover:bg-neutral-100 rounded"
+                        >
+                            <X className="w-5 h-5 text-neutral-500" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto">
 
                     {/* ========== SECTION 1: Route ========== */}
-                    <div className="p-4 bg-white border-b border-neutral-200">
+                    <div id="route-section" className="p-4 bg-white border-b border-neutral-200">
                         <SectionHeader title="Route" />
 
                         {!statsDefaults ? (
@@ -838,7 +1028,7 @@ export default function EditPanel({
                     </div>
 
                     {/* ========== SECTION 2: Appearance (FEATURED) ========== */}
-                    <div className="p-4">
+                    <div id="appearance-section" className="p-4">
                         <SectionHeader title="Appearance" />
 
                         {/* Featured Card */}
@@ -888,7 +1078,7 @@ export default function EditPanel({
                     </div>
 
                     {/* ========== SECTION 3: Details ========== */}
-                    <div className="p-4 pt-0">
+                    <div id="details-section" className="p-4 pt-0">
                         <SectionHeader title="Details" />
 
                         <div className="space-y-3">
@@ -970,7 +1160,7 @@ export default function EditPanel({
                 </div>
 
                 {/* ========== SECTION 4: Export (Sticky Bottom) ========== */}
-                <div className="p-4 border-t border-neutral-200 bg-white space-y-3">
+                <div id="export-section" className="p-4 border-t border-neutral-200 bg-white space-y-3">
                     <SectionHeader title="Export" />
 
                     {/* Primary Button */}
