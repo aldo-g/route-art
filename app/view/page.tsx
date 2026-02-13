@@ -45,6 +45,7 @@ export default function ViewPage() {
     const [artMode, setArtMode] = useState(false);
     const [routeHighlight, setRouteHighlight] = useState(false);
     const [routeHighlightIntensity, setRouteHighlightIntensity] = useState(0.5);
+    const [showHighlights, setShowHighlights] = useState(false);
 
     // Unified loading state
     const [loadingStatus, setLoadingStatus] = useState<string | null>("Processing route...");
@@ -409,7 +410,7 @@ export default function ViewPage() {
                             ref={canvasRef}
                             geoJson={geoJson}
                             fileName={fileName}
-                            selectedLandmarkIds={selectedLandmarkIds ?? undefined}
+                            selectedLandmarkIds={showHighlights ? (selectedLandmarkIds ?? undefined) : new Set()}
                             customLandmarks={customLandmarks}
                             statsOverrides={statsOverrides}
                             imageOverride={imageOverride}
@@ -471,6 +472,8 @@ export default function ViewPage() {
                     onToggleRouteHighlight={setRouteHighlight}
                     routeHighlightIntensity={routeHighlightIntensity}
                     onRouteHighlightIntensityChange={setRouteHighlightIntensity}
+                    showHighlights={showHighlights}
+                    onToggleHighlights={setShowHighlights}
                     onExportPNG={handleExportPNG}
                 />
             </div>

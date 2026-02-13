@@ -147,10 +147,33 @@ function TourOverlay({
         const target = document.getElementById(step.target);
         if (target) {
             targetRef.current = target;
-            setTargetRect(target.getBoundingClientRect());
 
-            // Scroll the target into view
-            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Scroll the target into view first
+            target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            // Update rect after scroll animation settles
+            const updateRect = () => {
+                setTargetRect(target.getBoundingClientRect());
+            };
+
+            // Initial update
+            updateRect();
+
+            // Update again after scroll animation (350ms should be enough)
+            const timer = setTimeout(updateRect, 350);
+
+            // Also listen for scroll events on the panel to update rect
+            const panel = target.closest('.overflow-y-auto');
+            if (panel) {
+                panel.addEventListener('scroll', updateRect);
+            }
+
+            return () => {
+                clearTimeout(timer);
+                if (panel) {
+                    panel.removeEventListener('scroll', updateRect);
+                }
+            };
         }
     }, [step.target, currentStep]);
 
@@ -367,6 +390,8 @@ export default function EditPanel({
     onToggleRouteHighlight,
     routeHighlightIntensity,
     onRouteHighlightIntensityChange,
+    showHighlights,
+    onToggleHighlights,
     onExportPNG,
 }: EditPanelProps) {
     // Tour state
@@ -399,7 +424,6 @@ export default function EditPanel({
     };
 
     // Section open/closed state
-    const [highlightsOpen, setHighlightsOpen] = useState(false);
     const [statsEditOpen, setStatsEditOpen] = useState(false);
 
     // Custom landmark form state
@@ -596,8 +620,6 @@ export default function EditPanel({
         setShowAddForm(false);
     };
 
-    const selectedCount = selectedLandmarkIds.size;
-    const totalCount = landmarks.length;
     const defaultFlagUrl = countryCode ? `https://flagcdn.com/${countryCode.toLowerCase()}.svg` : null;
 
     // Get display values for stats
@@ -848,11 +870,11 @@ export default function EditPanel({
                     </div>
 
                     {/* ========== SECTION 2: Appearance (FEATURED) ========== */}
-                    <div id="appearance-section" className="p-4">
+                    <div className="p-4">
                         <SectionHeader title="Appearance" />
 
                         {/* Featured Card */}
-                        <div className="bg-white rounded-xl p-4 border border-neutral-200 shadow-sm space-y-3">
+                        <div id="appearance-section" className="bg-white rounded-xl p-4 border border-neutral-200 shadow-sm space-y-3">
                             {/* Theme Toggles with inline sliders */}
                             <ToggleRow
                                 label="Dark theme"
@@ -918,11 +940,11 @@ export default function EditPanel({
                             {/* Highlights toggle with content below */}
                             <ToggleRow
                                 label="Highlights"
-                                checked={highlightsOpen}
-                                onChange={setHighlightsOpen}
+                                checked={showHighlights}
+                                onChange={onToggleHighlights}
                                 id="highlightsToggle"
                             />
-                            {highlightsOpen && (
+                            {showHighlights && (
                                 <div className="pl-4 pb-2 space-y-2">
                                     <div className="flex gap-2">
                                         <button
