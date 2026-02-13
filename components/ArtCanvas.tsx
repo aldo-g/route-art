@@ -47,6 +47,8 @@ interface ArtCanvasProps {
     showShading?: boolean;
     shadingIntensity?: number;
     artMode?: boolean;
+    routeHighlight?: boolean;
+    routeHighlightIntensity?: number;
     onLandmarksLoaded?: (landmarks: Landmark[]) => void;
     onVisibleLandmarksCalculated?: (visibleIds: number[]) => void;
     onInBoundsLandmarksCalculated?: (inBoundsIds: number[]) => void;
@@ -62,7 +64,7 @@ export interface ArtCanvasHandle {
     exportPNG: (fileName: string) => Promise<void>;
 }
 
-const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, showWater = true, showMarkers = true, showShading = false, shadingIntensity = 0.5, artMode: _artMode = false, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick, onLoadingStatusChange }, ref) => {
+const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, showWater = true, showMarkers = true, showShading = false, shadingIntensity = 0.5, artMode: _artMode = false, routeHighlight = true, routeHighlightIntensity = 0.5, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick, onLoadingStatusChange }, ref) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const projectionRef = useRef<d3.GeoProjection | null>(null);
@@ -752,6 +754,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         const { width, height } = containerSize;
 
         // Color scheme based on dark/light mode only
+        // Using professional cartographic text halo technique for label readability
         let colors;
         if (isDarkMode) {
             colors = {
@@ -762,8 +765,9 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 routeOutline: '#0a0a0a',
                 markerFill: '#f5f5f5',
                 markerStroke: '#0a0a0a',
-                labelFill: '#f5f5f5',
-                labelStroke: '#0a0a0a',
+                labelFill: 'rgba(255,255,255,0.95)',
+                labelHalo: 'rgba(0,0,0,0.85)',
+                labelSecondaryFill: 'rgba(255,255,255,0.85)',
                 titleFill: '#f5f5f5',
                 statsFill: '#a3a3a3',
                 waterFill: '#1a1a1a',
@@ -778,8 +782,9 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 routeOutline: 'white',
                 markerFill: '#171717',
                 markerStroke: 'white',
-                labelFill: '#171717',
-                labelStroke: 'white',
+                labelFill: 'rgba(30,30,30,0.95)',
+                labelHalo: 'rgba(255,255,255,0.85)',
+                labelSecondaryFill: 'rgba(30,30,30,0.85)',
                 titleFill: '#171717',
                 statsFill: '#525252',
                 waterFill: '#f5f5f5',
@@ -986,23 +991,63 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         // 3. Render Route
         const routeGroup = svg.append("g").attr("class", "route");
 
-        routeGroup.append("path")
-            .datum(processed.feature)
-            .attr("d", pathGenerator)
-            .attr("fill", "none")
-            .attr("stroke", colors.routeOutline)
-            .attr("stroke-width", 6)
-            .attr("stroke-linecap", "round")
-            .attr("stroke-linejoin", "round");
+        if (routeHighlight) {
+            // Triple-stroke effect for maximum visibility
+            // Scale values based on intensity (0-1)
+            const glowOpacity = 0.1 + (routeHighlightIntensity * 0.4); // 0.1 to 0.5
+            const glowWidth = 6 + (routeHighlightIntensity * 12); // 6 to 18
+            const outlineWidth = 4 + (routeHighlightIntensity * 6); // 4 to 10
+            const innerWidth = 2 + (routeHighlightIntensity * 2); // 2 to 4
 
-        routeGroup.append("path")
-            .datum(processed.feature)
-            .attr("d", pathGenerator)
-            .attr("fill", "none")
-            .attr("stroke", colors.routeStroke)
-            .attr("stroke-width", 2)
-            .attr("stroke-linecap", "round")
-            .attr("stroke-linejoin", "round");
+            // Outer glow/halo for contrast against busy contours
+            routeGroup.append("path")
+                .datum(processed.feature)
+                .attr("d", pathGenerator)
+                .attr("fill", "none")
+                .attr("stroke", isDarkMode ? `rgba(255,255,255,${glowOpacity})` : `rgba(0,0,0,${glowOpacity * 0.7})`)
+                .attr("stroke-width", glowWidth)
+                .attr("stroke-linecap", "round")
+                .attr("stroke-linejoin", "round");
+
+            // Middle outline stroke
+            routeGroup.append("path")
+                .datum(processed.feature)
+                .attr("d", pathGenerator)
+                .attr("fill", "none")
+                .attr("stroke", colors.routeOutline)
+                .attr("stroke-width", outlineWidth)
+                .attr("stroke-linecap", "round")
+                .attr("stroke-linejoin", "round");
+
+            // Inner stroke (the main visible line)
+            routeGroup.append("path")
+                .datum(processed.feature)
+                .attr("d", pathGenerator)
+                .attr("fill", "none")
+                .attr("stroke", colors.routeStroke)
+                .attr("stroke-width", innerWidth)
+                .attr("stroke-linecap", "round")
+                .attr("stroke-linejoin", "round");
+        } else {
+            // Simple dual-stroke (original style)
+            routeGroup.append("path")
+                .datum(processed.feature)
+                .attr("d", pathGenerator)
+                .attr("fill", "none")
+                .attr("stroke", colors.routeOutline)
+                .attr("stroke-width", 6)
+                .attr("stroke-linecap", "round")
+                .attr("stroke-linejoin", "round");
+
+            routeGroup.append("path")
+                .datum(processed.feature)
+                .attr("d", pathGenerator)
+                .attr("fill", "none")
+                .attr("stroke", colors.routeStroke)
+                .attr("stroke-width", 2)
+                .attr("stroke-linecap", "round")
+                .attr("stroke-linejoin", "round");
+        }
 
         // Add start and finish dots
         // Handle both LineString and MultiLineString geometries
@@ -1156,8 +1201,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
                 // Determine label position based on which side of route
                 let labelOnLeft = isLeftOfRoute(x, y);
-                const lineHeight = 11;
-                const charWidth = 5.5;
+                const lineHeight = 16; // Adjusted for 14px primary / 11px secondary font sizes
+                const charWidth = 7; // Adjusted for larger font
                 const labelOffset = 8;
                 const edgePadding = 5;
 
@@ -1240,17 +1285,24 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 lines.forEach((line, lineIdx) => {
                     const lineY = labelBaseY + (lineIdx * lineHeight);
 
-                    // Background for readability
+                    // Determine if this is the primary label (name) or secondary (elevation)
+                    const isPrimaryLabel = lineIdx === 0;
+                    const fontSize = isPrimaryLabel ? "14px" : "11px";
+                    const fontWeight = isPrimaryLabel ? "500" : "400";
+                    const textFill = isPrimaryLabel ? colors.labelFill : colors.labelSecondaryFill;
+
+                    // Text halo for readability (renders beneath text)
                     landmarkGroup.append("text")
                         .attr("x", labelBaseX)
                         .attr("y", lineY)
                         .attr("text-anchor", textAnchor)
                         .attr("font-family", "system-ui, sans-serif")
-                        .attr("font-size", "9px")
-                        .attr("font-weight", "500")
-                        .attr("fill", colors.labelStroke)
-                        .attr("stroke", colors.labelStroke)
-                        .attr("stroke-width", 3)
+                        .attr("font-size", fontSize)
+                        .attr("font-weight", fontWeight)
+                        .attr("fill", "none")
+                        .attr("stroke", colors.labelHalo)
+                        .attr("stroke-width", 2.5)
+                        .attr("stroke-linejoin", "round")
                         .attr("paint-order", "stroke")
                         .text(line);
 
@@ -1260,9 +1312,9 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                         .attr("y", lineY)
                         .attr("text-anchor", textAnchor)
                         .attr("font-family", "system-ui, sans-serif")
-                        .attr("font-size", "9px")
-                        .attr("font-weight", "500")
-                        .attr("fill", colors.labelFill)
+                        .attr("font-size", fontSize)
+                        .attr("font-weight", fontWeight)
+                        .attr("fill", textFill)
                         .text(line);
                 });
             });

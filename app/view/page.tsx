@@ -43,6 +43,8 @@ export default function ViewPage() {
     const [showShading, setShowShading] = useState(false);
     const [shadingIntensity, setShadingIntensity] = useState(0.5);
     const [artMode, setArtMode] = useState(false);
+    const [routeHighlight, setRouteHighlight] = useState(false);
+    const [routeHighlightIntensity, setRouteHighlightIntensity] = useState(0.5);
 
     // Unified loading state
     const [loadingStatus, setLoadingStatus] = useState<string | null>("Processing route...");
@@ -418,6 +420,8 @@ export default function ViewPage() {
                             showShading={showShading}
                             shadingIntensity={shadingIntensity}
                             artMode={artMode}
+                            routeHighlight={routeHighlight}
+                            routeHighlightIntensity={routeHighlightIntensity}
                             onLandmarksLoaded={handleLandmarksLoaded}
                             onVisibleLandmarksCalculated={handleVisibleLandmarksCalculated}
                             onInBoundsLandmarksCalculated={handleInBoundsLandmarksCalculated}
@@ -463,6 +467,10 @@ export default function ViewPage() {
                     onShadingIntensityChange={handleShadingIntensityChange}
                     artMode={artMode}
                     onToggleArtMode={handleToggleArtMode}
+                    routeHighlight={routeHighlight}
+                    onToggleRouteHighlight={setRouteHighlight}
+                    routeHighlightIntensity={routeHighlightIntensity}
+                    onRouteHighlightIntensityChange={setRouteHighlightIntensity}
                     onExportPNG={handleExportPNG}
                 />
             </div>

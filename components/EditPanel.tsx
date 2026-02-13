@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronRight, ChevronUp, Mountain, Droplets, Triangle, MapPin, Upload, Trash2, Plus, Star, Download, Heart, X, Settings, Printer, ShoppingBag, Coffee, ArrowRight } from 'lucide-react';
+import { ChevronUp, Mountain, Droplets, Triangle, Upload, Trash2, Plus, Star, Download, Heart, X, Settings, Printer, ShoppingBag, Coffee, ArrowRight } from 'lucide-react';
 import { Landmark } from '@/lib/landmarks';
 
 export interface StatsOverrides {
@@ -66,6 +66,14 @@ interface EditPanelProps {
     // Art Mode props
     artMode: boolean;
     onToggleArtMode: (value: boolean) => void;
+    // Route contrast props
+    routeHighlight: boolean;
+    onToggleRouteHighlight: (value: boolean) => void;
+    routeHighlightIntensity: number;
+    onRouteHighlightIntensityChange: (value: number) => void;
+    // Highlights visibility props
+    showHighlights: boolean;
+    onToggleHighlights: (value: boolean) => void;
     // Download props
     onExportPNG: () => void;
 }
@@ -162,9 +170,13 @@ function TourOverlay({
             };
         }
 
-        // Position to the left of the target on desktop
+        // Position to the left of the target on desktop, vertically centered with target
+        const tooltipHeight = 220; // Approximate height of tooltip
+        const targetCenter = targetRect.top + targetRect.height / 2;
+        const tooltipTop = Math.max(16, Math.min(targetCenter - tooltipHeight / 2, window.innerHeight - tooltipHeight - 16));
+
         return {
-            top: `${targetRect.top}px`,
+            top: `${tooltipTop}px`,
             right: `${window.innerWidth - targetRect.left + 16}px`,
         };
     };
@@ -320,37 +332,6 @@ function ToggleRow({
     );
 }
 
-// Collapsible Section for Highlights
-interface CollapsibleSectionProps {
-    title: string;
-    icon: React.ReactNode;
-    isOpen: boolean;
-    onToggle: () => void;
-    children: React.ReactNode;
-    count?: string;
-}
-
-function CollapsibleSection({ title, icon, isOpen, onToggle, children, count }: CollapsibleSectionProps) {
-    return (
-        <div className="border border-neutral-200 rounded-lg overflow-hidden">
-            <button
-                onClick={onToggle}
-                className="w-full flex items-center gap-2 p-3 hover:bg-neutral-50 transition-colors bg-white"
-            >
-                {isOpen ? <ChevronDown className="w-4 h-4 text-neutral-400" /> : <ChevronRight className="w-4 h-4 text-neutral-400" />}
-                <span className="text-neutral-500">{icon}</span>
-                <span className="text-sm font-medium text-neutral-700">{title}</span>
-                {count && <span className="ml-auto text-xs text-neutral-400">{count}</span>}
-            </button>
-            {isOpen && (
-                <div className="px-3 pb-3 bg-white border-t border-neutral-100">
-                    {children}
-                </div>
-            )}
-        </div>
-    );
-}
-
 export default function EditPanel({
     landmarks,
     selectedLandmarkIds,
@@ -382,6 +363,10 @@ export default function EditPanel({
     onShadingIntensityChange,
     artMode: _artMode,
     onToggleArtMode: _onToggleArtMode,
+    routeHighlight,
+    onToggleRouteHighlight,
+    routeHighlightIntensity,
+    onRouteHighlightIntensityChange,
     onExportPNG,
 }: EditPanelProps) {
     // Tour state
@@ -675,7 +660,7 @@ export default function EditPanel({
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => { setTourStep(0); setShowTour(true); }}
-                            className="hidden lg:block text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+                            className="w-6 h-6 flex items-center justify-center rounded-full border border-neutral-200 text-xs font-medium text-neutral-400 hover:text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50 transition-colors"
                             title="Show guided tour"
                         >
                             ?
@@ -858,201 +843,6 @@ export default function EditPanel({
                                     </div>
                                 )}
 
-                                {/* Highlights (Landmarks) - Collapsible */}
-                                <div className="pt-2">
-                                    <CollapsibleSection
-                                        title="Highlights"
-                                        icon={<MapPin className="w-4 h-4" />}
-                                        isOpen={highlightsOpen}
-                                        onToggle={() => setHighlightsOpen(!highlightsOpen)}
-                                        count={`${selectedCount}/${totalCount}`}
-                                    >
-                                        <div className="space-y-2 pt-2">
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={onSelectAllLandmarks}
-                                                    className="flex-1 text-xs py-1.5 px-2 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
-                                                >
-                                                    Select All
-                                                </button>
-                                                <button
-                                                    onClick={onDeselectAllLandmarks}
-                                                    className="flex-1 text-xs py-1.5 px-2 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
-                                                >
-                                                    Deselect All
-                                                </button>
-                                            </div>
-
-                                            {/* Add Custom Landmark */}
-                                            <div className="border-t border-neutral-100 pt-2">
-                                                {isPlacingLandmark ? (
-                                                    <div className="space-y-2">
-                                                        <p className="text-xs text-neutral-500 text-center py-2">
-                                                            Click on the map to place your highlight
-                                                        </p>
-                                                        <button
-                                                            onClick={onCancelPlacingLandmark}
-                                                            className="w-full py-1.5 text-xs border border-neutral-200 text-neutral-600 rounded-lg hover:bg-neutral-50 transition-colors"
-                                                        >
-                                                            Cancel
-                                                        </button>
-                                                    </div>
-                                                ) : !showAddForm ? (
-                                                    <button
-                                                        onClick={() => setShowAddForm(true)}
-                                                        className="w-full flex items-center justify-center gap-2 py-2 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded-lg transition-colors"
-                                                    >
-                                                        <Plus className="w-3.5 h-3.5" />
-                                                        Add highlight
-                                                    </button>
-                                                ) : (
-                                                    <div className="space-y-2">
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-xs font-medium text-neutral-600">New Highlight</span>
-                                                            <button onClick={handleCancelForm} className="text-xs text-neutral-400 hover:text-neutral-600">Cancel</button>
-                                                        </div>
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Name (required)"
-                                                            value={newLandmarkName}
-                                                            onChange={(e) => setNewLandmarkName(e.target.value)}
-                                                            className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
-                                                        />
-                                                        <div className="flex gap-1 flex-wrap">
-                                                            {iconOptions.map(option => (
-                                                                <button
-                                                                    key={option.value}
-                                                                    type="button"
-                                                                    onClick={() => setNewLandmarkIcon(option.value)}
-                                                                    className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded-lg border transition-colors ${newLandmarkIcon === option.value
-                                                                        ? 'bg-neutral-900 text-white border-neutral-900'
-                                                                        : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
-                                                                    }`}
-                                                                >
-                                                                    {getLandmarkIcon(option.value)}
-                                                                    {option.label}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Elevation in meters (optional)"
-                                                            value={newLandmarkElevation}
-                                                            onChange={(e) => setNewLandmarkElevation(e.target.value)}
-                                                            className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
-                                                        />
-                                                        <div className="flex gap-1">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setUseManualCoords(false)}
-                                                                className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${!useManualCoords
-                                                                    ? 'bg-neutral-900 text-white border-neutral-900'
-                                                                    : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
-                                                                }`}
-                                                            >
-                                                                Click on map
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setUseManualCoords(true)}
-                                                                className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${useManualCoords
-                                                                    ? 'bg-neutral-900 text-white border-neutral-900'
-                                                                    : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
-                                                                }`}
-                                                            >
-                                                                Enter coordinates
-                                                            </button>
-                                                        </div>
-                                                        {useManualCoords ? (
-                                                            <>
-                                                                <div className="flex gap-2">
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder="Latitude"
-                                                                        value={newLandmarkLat}
-                                                                        onChange={(e) => setNewLandmarkLat(e.target.value)}
-                                                                        className="flex-1 px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
-                                                                    />
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder="Longitude"
-                                                                        value={newLandmarkLng}
-                                                                        onChange={(e) => setNewLandmarkLng(e.target.value)}
-                                                                        className="flex-1 px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
-                                                                    />
-                                                                </div>
-                                                                <button
-                                                                    onClick={handleAddWithCoords}
-                                                                    disabled={!newLandmarkName.trim() || !newLandmarkLat || !newLandmarkLng}
-                                                                    className="w-full py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
-                                                                >
-                                                                    Add Highlight
-                                                                </button>
-                                                            </>
-                                                        ) : (
-                                                            <button
-                                                                onClick={handleStartPlacing}
-                                                                disabled={!newLandmarkName.trim()}
-                                                                className="w-full py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
-                                                            >
-                                                                Click on map to place
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Landmarks List */}
-                                            <div className="border-t border-neutral-100 pt-2 max-h-40 overflow-y-auto">
-                                                {landmarks.length === 0 ? (
-                                                    <p className="text-xs text-neutral-400 text-center py-4">
-                                                        No highlights found near this route
-                                                    </p>
-                                                ) : (
-                                                    <div className="space-y-1">
-                                                        {landmarks.map(landmark => (
-                                                            <div
-                                                                key={landmark.id}
-                                                                className={`flex items-center gap-2 p-1.5 rounded-lg transition-colors ${selectedLandmarkIds.has(landmark.id)
-                                                                    ? 'bg-neutral-100'
-                                                                    : 'hover:bg-neutral-50'
-                                                                }`}
-                                                            >
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={selectedLandmarkIds.has(landmark.id)}
-                                                                    onChange={() => onToggleLandmark(landmark.id)}
-                                                                    className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500 cursor-pointer"
-                                                                />
-                                                                <span className="text-neutral-400">
-                                                                    {getLandmarkIcon(landmark.type)}
-                                                                </span>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="text-xs font-medium truncate">
-                                                                        {landmark.name}
-                                                                        {landmark.isCustom && (
-                                                                            <span className="ml-1 text-[9px] px-1 py-0.5 bg-neutral-200 text-neutral-500 rounded">
-                                                                                custom
-                                                                            </span>
-                                                                        )}
-                                                                    </p>
-                                                                </div>
-                                                                {landmark.isCustom && (
-                                                                    <button
-                                                                        onClick={() => onDeleteCustomLandmark(landmark.id)}
-                                                                        className="p-0.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                                                                    >
-                                                                        <Trash2 className="w-3 h-3" />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </CollapsibleSection>
-                                </div>
                             </div>
                         )}
                     </div>
@@ -1062,48 +852,289 @@ export default function EditPanel({
                         <SectionHeader title="Appearance" />
 
                         {/* Featured Card */}
-                        <div className="bg-white rounded-xl p-4 border border-neutral-200 shadow-sm space-y-4">
-                            {/* Theme Toggles */}
-                            <div className="space-y-1">
-                                <ToggleRow
-                                    label="Dark theme"
-                                    checked={isDarkMode}
-                                    onChange={onToggleDarkMode}
-                                    id="darkTheme"
-                                />
-                                <ToggleRow
-                                    label="Show water"
-                                    checked={showWater}
-                                    onChange={onToggleWater}
-                                    id="showWater"
-                                />
-                                <ToggleRow
-                                    label="Relief shading"
-                                    checked={showShading}
-                                    onChange={onToggleShading}
-                                    id="reliefShading"
-                                />
-                            </div>
+                        <div className="bg-white rounded-xl p-4 border border-neutral-200 shadow-sm space-y-3">
+                            {/* Theme Toggles with inline sliders */}
+                            <ToggleRow
+                                label="Dark theme"
+                                checked={isDarkMode}
+                                onChange={onToggleDarkMode}
+                                id="darkTheme"
+                            />
+                            <ToggleRow
+                                label="Show water"
+                                checked={showWater}
+                                onChange={onToggleWater}
+                                id="showWater"
+                            />
 
-                            {/* Relief Strength Slider - Only visible when shading is ON */}
+                            {/* Relief shading with slider directly below */}
+                            <ToggleRow
+                                label="Relief shading"
+                                checked={showShading}
+                                onChange={onToggleShading}
+                                id="reliefShading"
+                            />
                             {showShading && (
-                                <div className="pt-2 border-t border-neutral-100">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-sm text-neutral-700">Relief strength</span>
-                                        <span className="text-xs text-neutral-400 tabular-nums">{Math.round(shadingIntensity * 100)}%</span>
+                                <div className="pl-4 pb-1">
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.05"
+                                            value={shadingIntensity}
+                                            onChange={(e) => onShadingIntensityChange(parseFloat(e.target.value))}
+                                            className="flex-1 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-neutral-900"
+                                        />
+                                        <span className="text-xs text-neutral-400 tabular-nums w-8">{Math.round(shadingIntensity * 100)}%</span>
                                     </div>
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="1"
-                                        step="0.05"
-                                        value={shadingIntensity}
-                                        onChange={(e) => onShadingIntensityChange(parseFloat(e.target.value))}
-                                        className="w-full h-2 bg-neutral-200 rounded-full appearance-none cursor-pointer accent-neutral-900"
-                                    />
-                                    <p className="text-xs text-neutral-400 mt-1.5">Controls how dramatic the terrain looks</p>
                                 </div>
                             )}
+
+                            {/* Route contrast with slider directly below */}
+                            <ToggleRow
+                                label="Route contrast"
+                                checked={routeHighlight}
+                                onChange={onToggleRouteHighlight}
+                                id="routeContrast"
+                            />
+                            {routeHighlight && (
+                                <div className="pl-4 pb-1">
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.05"
+                                            value={routeHighlightIntensity}
+                                            onChange={(e) => onRouteHighlightIntensityChange(parseFloat(e.target.value))}
+                                            className="flex-1 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-neutral-900"
+                                        />
+                                        <span className="text-xs text-neutral-400 tabular-nums w-8">{Math.round(routeHighlightIntensity * 100)}%</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Highlights toggle with content below */}
+                            <ToggleRow
+                                label="Highlights"
+                                checked={highlightsOpen}
+                                onChange={setHighlightsOpen}
+                                id="highlightsToggle"
+                            />
+                            {highlightsOpen && (
+                                <div className="pl-4 pb-2 space-y-2">
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={onSelectAllLandmarks}
+                                            className="flex-1 text-xs py-1.5 px-2 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
+                                        >
+                                            Select All
+                                        </button>
+                                        <button
+                                            onClick={onDeselectAllLandmarks}
+                                            className="flex-1 text-xs py-1.5 px-2 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
+                                        >
+                                            Deselect All
+                                        </button>
+                                    </div>
+
+                                    {/* Add Custom Landmark */}
+                                    <div className="border-t border-neutral-100 pt-2">
+                                        {isPlacingLandmark ? (
+                                            <div className="space-y-2">
+                                                <p className="text-xs text-neutral-500 text-center py-2">
+                                                    Click on the map to place your highlight
+                                                </p>
+                                                <button
+                                                    onClick={onCancelPlacingLandmark}
+                                                    className="w-full py-1.5 text-xs border border-neutral-200 text-neutral-600 rounded-lg hover:bg-neutral-50 transition-colors"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        ) : !showAddForm ? (
+                                            <button
+                                                onClick={() => setShowAddForm(true)}
+                                                className="w-full flex items-center justify-center gap-2 py-2 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded-lg transition-colors"
+                                            >
+                                                <Plus className="w-3.5 h-3.5" />
+                                                Add highlight
+                                            </button>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-medium text-neutral-600">New Highlight</span>
+                                                    <button onClick={handleCancelForm} className="text-xs text-neutral-400 hover:text-neutral-600">Cancel</button>
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Name (required)"
+                                                    value={newLandmarkName}
+                                                    onChange={(e) => setNewLandmarkName(e.target.value)}
+                                                    className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                                                />
+                                                <div className="flex gap-1 flex-wrap">
+                                                    {iconOptions.map(option => (
+                                                        <button
+                                                            key={option.value}
+                                                            type="button"
+                                                            onClick={() => setNewLandmarkIcon(option.value)}
+                                                            className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded-lg border transition-colors ${newLandmarkIcon === option.value
+                                                                ? 'bg-neutral-900 text-white border-neutral-900'
+                                                                : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                            }`}
+                                                        >
+                                                            {getLandmarkIcon(option.value)}
+                                                            {option.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Elevation in meters (optional)"
+                                                    value={newLandmarkElevation}
+                                                    onChange={(e) => setNewLandmarkElevation(e.target.value)}
+                                                    className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                                                />
+                                                <div className="flex gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setUseManualCoords(false)}
+                                                        className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${!useManualCoords
+                                                            ? 'bg-neutral-900 text-white border-neutral-900'
+                                                            : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                        }`}
+                                                    >
+                                                        Click on map
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setUseManualCoords(true)}
+                                                        className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${useManualCoords
+                                                            ? 'bg-neutral-900 text-white border-neutral-900'
+                                                            : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                        }`}
+                                                    >
+                                                        Enter coordinates
+                                                    </button>
+                                                </div>
+                                                {useManualCoords ? (
+                                                    <>
+                                                        <div className="flex gap-2">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Latitude"
+                                                                value={newLandmarkLat}
+                                                                onChange={(e) => setNewLandmarkLat(e.target.value)}
+                                                                className="flex-1 px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Longitude"
+                                                                value={newLandmarkLng}
+                                                                onChange={(e) => setNewLandmarkLng(e.target.value)}
+                                                                className="flex-1 px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            onClick={handleAddWithCoords}
+                                                            disabled={!newLandmarkName.trim() || !newLandmarkLat || !newLandmarkLng}
+                                                            className="w-full py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                                                        >
+                                                            Add Highlight
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <button
+                                                        onClick={handleStartPlacing}
+                                                        disabled={!newLandmarkName.trim()}
+                                                        className="w-full py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                                                    >
+                                                        Click on map to place
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Landmarks List */}
+                                    <div className="border-t border-neutral-100 pt-2 max-h-40 overflow-y-auto">
+                                        {landmarks.length === 0 ? (
+                                            <p className="text-xs text-neutral-400 text-center py-4">
+                                                No highlights found near this route
+                                            </p>
+                                        ) : (
+                                            <div className="space-y-1">
+                                                {landmarks.map(landmark => (
+                                                    <div
+                                                        key={landmark.id}
+                                                        className={`flex items-center gap-2 p-1.5 rounded-lg transition-colors ${selectedLandmarkIds.has(landmark.id)
+                                                            ? 'bg-neutral-100'
+                                                            : 'hover:bg-neutral-50'
+                                                        }`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedLandmarkIds.has(landmark.id)}
+                                                            onChange={() => onToggleLandmark(landmark.id)}
+                                                            className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500 cursor-pointer"
+                                                        />
+                                                        <span className="text-neutral-400">
+                                                            {getLandmarkIcon(landmark.type)}
+                                                        </span>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-xs font-medium truncate">
+                                                                {landmark.name}
+                                                                {landmark.isCustom && (
+                                                                    <span className="ml-1 text-[9px] px-1 py-0.5 bg-neutral-200 text-neutral-500 rounded">
+                                                                        custom
+                                                                    </span>
+                                                                )}
+                                                            </p>
+                                                        </div>
+                                                        {landmark.isCustom && (
+                                                            <button
+                                                                onClick={() => onDeleteCustomLandmark(landmark.id)}
+                                                                className="p-0.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                            >
+                                                                <Trash2 className="w-3 h-3" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Layout */}
+                            <div className="pt-2 border-t border-neutral-100">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm text-neutral-700">Layout</span>
+                                    <div className="flex gap-1">
+                                        <button
+                                            onClick={() => onToggleOrientation(false)}
+                                            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${!isPortrait
+                                                ? 'bg-neutral-900 text-white border-neutral-900'
+                                                : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                            }`}
+                                        >
+                                            Landscape
+                                        </button>
+                                        <button
+                                            onClick={() => onToggleOrientation(true)}
+                                            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${isPortrait
+                                                ? 'bg-neutral-900 text-white border-neutral-900'
+                                                : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                            }`}
+                                        >
+                                            Portrait
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1159,31 +1190,6 @@ export default function EditPanel({
                                     </button>
                                 </div>
                             )}
-
-                            {/* Layout */}
-                            <div className="flex items-center justify-between py-1">
-                                <span className="text-sm text-neutral-600">Layout</span>
-                                <div className="flex gap-1">
-                                    <button
-                                        onClick={() => onToggleOrientation(false)}
-                                        className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${!isPortrait
-                                            ? 'bg-neutral-900 text-white border-neutral-900'
-                                            : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
-                                        }`}
-                                    >
-                                        Landscape
-                                    </button>
-                                    <button
-                                        onClick={() => onToggleOrientation(true)}
-                                        className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${isPortrait
-                                            ? 'bg-neutral-900 text-white border-neutral-900'
-                                            : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
-                                        }`}
-                                    >
-                                        Portrait
-                                    </button>
-                                </div>
-                            </div>
                         </div>
                     </div>
 
