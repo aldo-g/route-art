@@ -40,10 +40,10 @@ export default function ViewPage() {
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [showWater, setShowWater] = useState(true);
     const [showMarkers, setShowMarkers] = useState(true);
-    const [showShading, setShowShading] = useState(false);
+    const [showShading, setShowShading] = useState(true);
     const [shadingIntensity, setShadingIntensity] = useState(0.5);
     const [artMode, setArtMode] = useState(false);
-    const [routeHighlight, setRouteHighlight] = useState(false);
+    const [routeHighlight, setRouteHighlight] = useState(true);
     const [routeHighlightIntensity, setRouteHighlightIntensity] = useState(0.5);
     const [showHighlights, setShowHighlights] = useState(false);
 

@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronUp, Mountain, Droplets, Triangle, Upload, Trash2, Plus, Star, Download, Heart, X, Settings, Printer, ShoppingBag, Coffee, ArrowRight } from 'lucide-react';
+import { ChevronUp, Mountain, Droplets, Triangle, Upload, Trash2, Plus, Star, Download, Heart, X, Settings, ShoppingBag, Coffee, ArrowRight } from 'lucide-react';
 import { Landmark } from '@/lib/landmarks';
 
 export interface StatsOverrides {
@@ -111,7 +111,7 @@ const TOUR_STEPS = [
     {
         target: 'appearance-section',
         title: 'Appearance',
-        description: 'Change how your map looks. Toggle dark theme, show water features, or add terrain relief shading for a dramatic effect.',
+        description: 'Dark theme inverts colors for a striking look. Show water displays lakes and rivers. Relief shading adds 3D terrain depth. Route contrast makes your route pop against contours. Highlights labels peaks and landmarks.',
     },
     {
         target: 'details-section',
@@ -1231,14 +1231,7 @@ export default function EditPanel({
                     </button>
 
                     {/* Secondary Buttons */}
-                    <div className="grid grid-cols-3 gap-2">
-                        <button
-                            disabled
-                            className="flex flex-col items-center justify-center gap-1 py-2.5 px-2 border border-neutral-200 text-neutral-400 text-xs rounded-lg cursor-not-allowed"
-                        >
-                            <Printer className="w-4 h-4" />
-                            <span>Print PDF</span>
-                        </button>
+                    <div className="grid grid-cols-2 gap-2">
                         <button
                             disabled
                             className="flex flex-col items-center justify-center gap-1 py-2.5 px-2 border border-neutral-200 text-neutral-400 text-xs rounded-lg cursor-not-allowed"
