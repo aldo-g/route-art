@@ -717,8 +717,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
             const img = new Image();
             img.onload = () => {
-                // Use 2x resolution for high quality
-                const scale = 2;
+                // Use 8x resolution for print-quality output (~A1 at 150 DPI)
+                const scale = 8;
                 const canvas = document.createElement('canvas');
                 canvas.width = width * scale;
                 canvas.height = height * scale;

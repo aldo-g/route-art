@@ -2,63 +2,139 @@
 // app/page.tsx
 'use client';
 
-import React from 'react';
+import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { MapPin, Printer, Palette, Mountain } from 'lucide-react';
 import UploadZone from '@/components/UploadZone';
 import StravaConnect from '@/components/StravaConnect';
 import ImageCarousel from '@/components/ImageCarousel';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
+const mockups = [
+  { src: '/images/mock_ups/Brown Modern Minimal Living Room Horizontal Wall Art Poster Frame Mockup Instagram Post.png', alt: 'West Highland Way - living room' },
+  { src: '/images/mock_ups/Brown Modern Interior Living Room Gallery Wall Art Poster Frame Mockup Instagram Post.png', alt: 'Gallery wall with multiple maps' },
+  { src: '/images/mock_ups/White and Blue Minimalist Wall Frame Mockup Instagram Post.png', alt: 'West Highland Way - modern interior' },
+  { src: '/images/mock_ups/Brown Minimalist 3D Illustration Wall Frame Mockup Instagram Post.png', alt: 'Melbourne to Adelaide - dark theme' },
+];
+
+const features = [
+  { icon: Mountain, text: 'Perfect for hikers, runners, and cyclists' },
+  { icon: Printer, text: 'Print-ready at A1, A2, A3, A4' },
+  { icon: Palette, text: 'Minimalist, gallery-quality design' },
+  { icon: MapPin, text: 'Automatic landmark detection' },
+];
+
 export default function Home() {
   const router = useRouter();
+  const uploadRef = useRef<HTMLDivElement>(null);
 
   const handleDataLoaded = (data: unknown, name: string) => {
-    // Store data in sessionStorage for the view page
     sessionStorage.setItem('routeArtData', JSON.stringify(data));
     sessionStorage.setItem('routeArtFileName', name);
-
-    // Navigate to view page
     router.push('/view');
   };
 
+  const scrollToUpload = () => {
+    uploadRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
-    <main className="min-h-screen lg:h-screen bg-neutral-100 text-neutral-900 flex flex-col font-sans lg:overflow-hidden">
+    <main className="min-h-screen bg-neutral-100 text-neutral-900 flex flex-col font-sans">
       <Header />
 
-      <div className="flex-1 p-4 flex flex-col">
-        <div className="max-w-5xl mx-auto w-full flex flex-col justify-center flex-1">
-          <div className="text-center mb-6">
-            <h2 className="text-xl lg:text-2xl font-light text-neutral-800">
-              Transform your activities into contour maps.
-            </h2>
-            <p className="mt-2 text-neutral-500 text-sm">
-              Upload a GPX route, or connect with Strava to get started.
+      {/* Hero Section */}
+      <section className="flex-shrink-0 px-6 py-12 lg:py-20">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+          {/* Left - Copy */}
+          <div className="order-2 lg:order-1">
+            <h1 className="text-3xl lg:text-5xl font-semibold tracking-tight text-neutral-900 leading-tight">
+              Turn your hikes and rides into beautiful wall art.
+            </h1>
+            <p className="mt-4 text-lg text-neutral-500 leading-relaxed max-w-lg">
+              Upload a GPX file and generate a print-ready contour map of your adventure in seconds.
             </p>
+            <div className="mt-8 flex flex-col sm:flex-row items-start gap-4">
+              <button
+                onClick={scrollToUpload}
+                className="px-8 py-3.5 bg-neutral-900 text-white rounded-lg text-base font-medium hover:bg-neutral-800 active:bg-neutral-950 transition-colors"
+              >
+                Create your poster
+              </button>
+              <a
+                href="#examples"
+                className="px-4 py-3.5 text-neutral-500 hover:text-neutral-800 transition-colors text-base"
+              >
+                See examples
+              </a>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 items-center">
-            {/* Upload options - shown first on mobile */}
-            <div className="order-1 flex flex-col justify-center">
-              <div className="space-y-3">
-                <UploadZone onDataLoaded={handleDataLoaded} />
-                <StravaConnect onDataLoaded={handleDataLoaded} />
-              </div>
-            </div>
-
-            {/* Carousel - shown on desktop in grid */}
-            <div className="hidden lg:block order-2">
-              <ImageCarousel />
-            </div>
-          </div>
-
-          {/* Mobile examples section - scroll down to see */}
-          <div className="lg:hidden mt-8 pb-8">
-            <p className="text-center text-neutral-400 text-sm mb-4">Examples</p>
+          {/* Right - Carousel */}
+          <div className="order-1 lg:order-2">
             <ImageCarousel />
           </div>
         </div>
-      </div>
+      </section>
+
+      {/* Feature Row */}
+      <section className="px-6 py-8 border-y border-neutral-200 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+            {features.map((feature) => (
+              <div key={feature.text} className="flex items-center gap-3">
+                <feature.icon className="w-5 h-5 text-neutral-400 flex-shrink-0" />
+                <span className="text-sm text-neutral-600">{feature.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Examples Section */}
+      <section id="examples" className="px-6 py-16">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-2xl font-semibold text-neutral-900 text-center">
+            Real adventures turned into wall art
+          </h2>
+          <p className="mt-2 text-neutral-500 text-center text-sm">
+            Every map is unique to your route.
+          </p>
+          <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {mockups.map((mockup) => (
+              <div
+                key={mockup.src}
+                className="relative aspect-square rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+              >
+                <Image
+                  src={mockup.src}
+                  alt={mockup.alt}
+                  fill
+                  className="object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Upload Section */}
+      <section ref={uploadRef} className="px-6 py-16 bg-white border-t border-neutral-200">
+        <div className="max-w-xl mx-auto">
+          <h2 className="text-2xl font-semibold text-neutral-900 text-center">
+            Upload your GPX file
+          </h2>
+          <p className="mt-2 text-neutral-500 text-center text-sm">
+            Supports GPX files from Strava, Garmin, Komoot and others.
+          </p>
+          <div className="mt-8 space-y-3">
+            <UploadZone onDataLoaded={handleDataLoaded} />
+            <StravaConnect onDataLoaded={handleDataLoaded} />
+          </div>
+        </div>
+      </section>
+
       <Footer />
     </main>
   );

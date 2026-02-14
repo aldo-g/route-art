@@ -396,13 +396,13 @@ export default function ViewPage() {
                     <div
                         className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden relative"
                         style={isPortrait ? {
-                            aspectRatio: '2 / 3',
-                            height: 'min(70vh, calc(100vw * 1.5))',
-                            maxWidth: 'calc(70vh * 0.667)' // 2:3 ratio constraint
+                            aspectRatio: '1 / 1.4142',
+                            height: 'min(70vh, calc(100vw * 1.4142))',
+                            maxWidth: 'calc(70vh / 1.4142)' // A-series ratio constraint
                         } : {
-                            aspectRatio: '3 / 2',
+                            aspectRatio: '1.4142 / 1',
                             width: '100%',
-                            maxWidth: 'min(calc((100vh - 180px) * 1.5), 100%)', // 3:2 ratio constraint
+                            maxWidth: 'min(calc((100vh - 180px) * 1.4142), 100%)', // A-series ratio constraint
                             maxHeight: 'calc(100vh - 180px)'
                         }}
                     >
