@@ -38,7 +38,7 @@ export default function ImageCarousel() {
 
   return (
     <div
-      className="relative w-full max-w-lg mx-auto"
+      className="relative w-full max-w-xl mx-auto"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >

@@ -5,12 +5,13 @@
 import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { MapPin, Printer, Palette, Mountain } from 'lucide-react';
+import { MapPin, Printer, Palette, Mountain, Upload, SlidersHorizontal, Download } from 'lucide-react';
 import UploadZone from '@/components/UploadZone';
 import StravaConnect from '@/components/StravaConnect';
 import ImageCarousel from '@/components/ImageCarousel';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import { setRouteData } from '@/lib/storage';
 
 const mockups = [
   { src: '/images/mock_ups/Brown Modern Minimal Living Room Horizontal Wall Art Poster Frame Mockup Instagram Post.png', alt: 'West Highland Way - living room' },
@@ -26,12 +27,18 @@ const features = [
   { icon: MapPin, text: 'Automatic landmark detection' },
 ];
 
+const steps = [
+  { icon: Upload, title: 'Upload GPX', description: 'Drop in a file from Strava, Garmin, or Komoot' },
+  { icon: SlidersHorizontal, title: 'Customize your map', description: 'Adjust style, landmarks, and layout' },
+  { icon: Download, title: 'Download or print', description: 'Export a high-res PNG ready for framing' },
+];
+
 export default function Home() {
   const router = useRouter();
   const uploadRef = useRef<HTMLDivElement>(null);
 
-  const handleDataLoaded = (data: unknown, name: string) => {
-    sessionStorage.setItem('routeArtData', JSON.stringify(data));
+  const handleDataLoaded = async (data: unknown, name: string) => {
+    await setRouteData('routeArtData', data);
     sessionStorage.setItem('routeArtFileName', name);
     router.push('/view');
   };
@@ -42,17 +49,17 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-neutral-100 text-neutral-900 flex flex-col font-sans">
-      <Header />
+      <Header onCtaClick={scrollToUpload} />
 
       {/* Hero Section */}
-      <section className="flex-shrink-0 px-6 py-12 lg:py-20">
+      <section className="flex-shrink-0 px-6 pt-16 pb-20 lg:pt-24 lg:pb-28">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           {/* Left - Copy */}
           <div className="order-2 lg:order-1">
             <h1 className="text-3xl lg:text-5xl font-semibold tracking-tight text-neutral-900 leading-tight">
               Turn your hikes and rides into beautiful wall art.
             </h1>
-            <p className="mt-4 text-lg text-neutral-500 leading-relaxed max-w-lg">
+            <p className="mt-5 text-lg text-neutral-500 leading-relaxed max-w-lg">
               Upload a GPX file and generate a print-ready contour map of your adventure in seconds.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-start gap-4">
@@ -69,6 +76,9 @@ export default function Home() {
                 See examples
               </a>
             </div>
+            <p className="mt-4 text-xs text-neutral-400">
+              Free to use. Download instantly as a high-res PNG.
+            </p>
           </div>
 
           {/* Right - Carousel */}
@@ -76,6 +86,11 @@ export default function Home() {
             <ImageCarousel />
           </div>
         </div>
+
+        {/* Trust signal */}
+        <p className="mt-16 text-center text-sm text-neutral-400">
+          Used by hikers, runners, and cyclists worldwide
+        </p>
       </section>
 
       {/* Feature Row */}
@@ -93,7 +108,7 @@ export default function Home() {
       </section>
 
       {/* Examples Section */}
-      <section id="examples" className="px-6 py-16">
+      <section id="examples" className="px-6 pt-20 pb-20">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-2xl font-semibold text-neutral-900 text-center">
             Real adventures turned into wall art
@@ -112,6 +127,7 @@ export default function Home() {
                   alt={mockup.alt}
                   fill
                   className="object-cover"
+                  loading="lazy"
                 />
               </div>
             ))}
@@ -119,14 +135,35 @@ export default function Home() {
         </div>
       </section>
 
+      {/* How It Works */}
+      <section className="px-6 pt-20 pb-20 border-t border-neutral-200 bg-white">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl font-semibold text-neutral-900 text-center">
+            How it works
+          </h2>
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-8">
+            {steps.map((step, i) => (
+              <div key={step.title} className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-neutral-100 mb-4">
+                  <step.icon className="w-5 h-5 text-neutral-600" />
+                </div>
+                <p className="text-xs text-neutral-400 mb-1">Step {i + 1}</p>
+                <h3 className="font-medium text-neutral-900">{step.title}</h3>
+                <p className="mt-1 text-sm text-neutral-500">{step.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Upload Section */}
-      <section ref={uploadRef} className="px-6 py-16 bg-white border-t border-neutral-200">
+      <section ref={uploadRef} className="px-6 pt-20 pb-20 border-t border-neutral-200">
         <div className="max-w-xl mx-auto">
           <h2 className="text-2xl font-semibold text-neutral-900 text-center">
-            Upload your GPX file
+            Start with your GPX file
           </h2>
           <p className="mt-2 text-neutral-500 text-center text-sm">
-            Supports GPX files from Strava, Garmin, Komoot and others.
+            Export GPX from Strava, Garmin, Komoot, or any GPS device.
           </p>
           <div className="mt-8 space-y-3">
             <UploadZone onDataLoaded={handleDataLoaded} />

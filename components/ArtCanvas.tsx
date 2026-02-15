@@ -47,6 +47,8 @@ interface ArtCanvasProps {
     showShading?: boolean;
     shadingIntensity?: number;
     artMode?: boolean;
+    contourIntensity?: number;
+    labelSideOverrides?: Record<number, 'left' | 'right'>;
     routeHighlight?: boolean;
     routeHighlightIntensity?: number;
     onLandmarksLoaded?: (landmarks: Landmark[]) => void;
@@ -62,9 +64,10 @@ export interface ArtCanvasHandle {
     exportSVG: (fileName: string) => Promise<void>;
     exportPDF: (fileName: string) => Promise<void>;
     exportPNG: (fileName: string) => Promise<void>;
+    getPreviewDataUrl: () => Promise<string | null>;
 }
 
-const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, showWater = true, showMarkers = true, showShading = false, shadingIntensity = 0.5, artMode: _artMode = false, routeHighlight = true, routeHighlightIntensity = 0.5, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick, onLoadingStatusChange }, ref) => {
+const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, showWater = true, showMarkers = true, showShading = false, shadingIntensity = 0.5, artMode: _artMode = false, contourIntensity = 0.5, labelSideOverrides = {}, routeHighlight = true, routeHighlightIntensity = 0.5, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick, onLoadingStatusChange }, ref) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const projectionRef = useRef<d3.GeoProjection | null>(null);
@@ -665,7 +668,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 canvas.height = height * 2;
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
-                    ctx.fillStyle = 'white';
+                    ctx.fillStyle = '#f8f7f4';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     const imgData = canvas.toDataURL('image/jpeg', 0.95);
@@ -724,7 +727,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 canvas.height = height * scale;
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
-                    ctx.fillStyle = 'white';
+                    ctx.fillStyle = '#f8f7f4';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
@@ -744,6 +747,66 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 URL.revokeObjectURL(svgUrl);
             };
             img.src = svgUrl;
+        },
+        getPreviewDataUrl: async () => {
+            if (!svgRef.current || !containerSize) return null;
+
+            const svgElement = svgRef.current;
+            const { width, height } = containerSize;
+
+            const svgClone = svgElement.cloneNode(true) as SVGSVGElement;
+            svgClone.setAttribute('width', width.toString());
+            svgClone.setAttribute('height', height.toString());
+            svgClone.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+            const images = svgClone.querySelectorAll('image');
+            for (const img of images) {
+                const href = img.getAttribute('href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+                if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+                    try {
+                        const response = await fetch(href);
+                        const blob = await response.blob();
+                        const dataUrl = await new Promise<string>((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result as string);
+                            reader.readAsDataURL(blob);
+                        });
+                        img.setAttribute('href', dataUrl);
+                        img.removeAttributeNS('http://www.w3.org/1999/xlink', 'href');
+                    } catch (e) {
+                        console.warn('Failed to convert image to data URL:', href, e);
+                    }
+                }
+            }
+
+            const svgData = new XMLSerializer().serializeToString(svgClone);
+            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+            const svgUrl = URL.createObjectURL(svgBlob);
+
+            return new Promise<string | null>((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const scale = 2;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width * scale;
+                    canvas.height = height * scale;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.fillStyle = '#f8f7f4';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        resolve(canvas.toDataURL('image/png'));
+                    } else {
+                        resolve(null);
+                    }
+                    URL.revokeObjectURL(svgUrl);
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(svgUrl);
+                    resolve(null);
+                };
+                img.src = svgUrl;
+            });
         }
     }));
 
@@ -775,19 +838,19 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             };
         } else {
             colors = {
-                background: '#ffffff',
+                background: '#f8f7f4',
                 contourStroke: '#e5e5e5',
                 borderStroke: '#e5e5e5',
                 routeStroke: '#171717',
-                routeOutline: 'white',
+                routeOutline: '#f8f7f4',
                 markerFill: '#171717',
-                markerStroke: 'white',
+                markerStroke: '#f8f7f4',
                 labelFill: 'rgba(30,30,30,0.95)',
-                labelHalo: 'rgba(255,255,255,0.85)',
+                labelHalo: 'rgba(248,247,244,0.85)',
                 labelSecondaryFill: 'rgba(30,30,30,0.85)',
                 titleFill: '#171717',
                 statsFill: '#525252',
-                waterFill: '#f5f5f5',
+                waterFill: '#f0efec',
                 waterStroke: '#e5e5e5',
             };
         }
@@ -963,14 +1026,27 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             }
         });
 
+        // Contour intensity: 0–0.5 controls opacity (faint to full), 0.5–1.0 darkens the stroke
+        const contourOpacity = contourIntensity <= 0.5
+            ? 0.05 + (contourIntensity / 0.5) * 0.95
+            : 1.0;
+        const contourDarken = contourIntensity <= 0.5
+            ? 0
+            : (contourIntensity - 0.5) / 0.5; // 0 at 50%, 1 at 100%
+        const contourColor = contourDarken > 0
+            ? (isDarkMode
+                ? d3.interpolateRgb(colors.contourStroke, '#888888')(contourDarken)
+                : d3.interpolateRgb(colors.contourStroke, '#333333')(contourDarken))
+            : colors.contourStroke;
+
         contourGroup.selectAll("path")
             .data(contours)
             .enter().append("path")
             .attr("d", d3.geoPath(gridToProjection))
             .attr("fill", "none")
-            .attr("stroke", colors.contourStroke)
-            .attr("stroke-width", 0.75)
-            .style("opacity", 0.8);
+            .attr("stroke", contourColor)
+            .attr("stroke-width", 0.75 + contourDarken * 0.5)
+            .style("opacity", contourOpacity);
 
         // Render water bodies (lakes, rivers, oceans) on top of contours
         if (showWater && waterData && waterData.features && waterData.features.length > 0) {
@@ -1199,8 +1275,10 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 const labelName = landmark.name;
                 const labelElevation = landmark.elevation ? `(${Math.round(landmark.elevation)}m)` : '';
 
-                // Determine label position based on which side of route
-                let labelOnLeft = isLeftOfRoute(x, y);
+                // Determine label position based on override or which side of route
+                let labelOnLeft = labelSideOverrides[landmark.id]
+                    ? labelSideOverrides[landmark.id] === 'left'
+                    : isLeftOfRoute(x, y);
                 const lineHeight = 16; // Adjusted for 14px primary / 11px secondary font sizes
                 const charWidth = 7; // Adjusted for larger font
                 const labelOffset = 8;
@@ -1515,7 +1593,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 .attr("preserveAspectRatio", "xMidYMid meet");
         }
 
-    }, [processed, geoJson, elevationData, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize, isDarkMode, showWater, waterData, showMarkers]);
+    }, [processed, geoJson, elevationData, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize, isDarkMode, showWater, waterData, showMarkers, contourIntensity, labelSideOverrides]);
 
     return (
         <div ref={containerRef} className={`w-full h-full relative ${isDarkMode ? 'bg-[#0a0a0a]' : 'bg-white'}`}>

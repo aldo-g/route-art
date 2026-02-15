@@ -10,6 +10,8 @@ import LoadingOverlay from '@/components/LoadingOverlay';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { Landmark } from '@/lib/landmarks';
+import { getRouteData } from '@/lib/storage';
+import StoreModal from '@/components/store/StoreModal';
 
 export default function ViewPage() {
     const router = useRouter();
@@ -43,9 +45,11 @@ export default function ViewPage() {
     const [showShading, setShowShading] = useState(true);
     const [shadingIntensity, setShadingIntensity] = useState(0.5);
     const [artMode, setArtMode] = useState(false);
+    const [contourIntensity, setContourIntensity] = useState(0.5);
     const [routeHighlight, setRouteHighlight] = useState(true);
     const [routeHighlightIntensity, setRouteHighlightIntensity] = useState(0.5);
     const [showHighlights, setShowHighlights] = useState(false);
+    const [labelSideOverrides, setLabelSideOverrides] = useState<Record<number, 'left' | 'right'>>({});
 
     // Unified loading state
     const [loadingStatus, setLoadingStatus] = useState<string | null>("Processing route...");
@@ -55,13 +59,21 @@ export default function ViewPage() {
     const [pendingLandmark, setPendingLandmark] = useState<{ name: string; iconType: Landmark['type']; elevation?: string } | null>(null);
 
     useEffect(() => {
-        // Retrieve data from sessionStorage
-        const storedData = sessionStorage.getItem('routeArtData');
-        const storedFileName = sessionStorage.getItem('routeArtFileName');
+        async function loadData() {
+            const storedFileName = sessionStorage.getItem('routeArtFileName');
+            if (!storedFileName) {
+                router.push('/');
+                return;
+            }
 
-        if (storedData && storedFileName) {
             try {
-                setGeoJson(JSON.parse(storedData));
+                const storedData = await getRouteData('routeArtData');
+                if (!storedData) {
+                    router.push('/');
+                    return;
+                }
+
+                setGeoJson(storedData);
                 setFileName(storedFileName);
 
                 // Also restore selected landmarks if saved
@@ -110,17 +122,13 @@ export default function ViewPage() {
                     setArtMode(storedArtMode === 'true');
                 }
 
-                // Finish initial load status
                 setLoadingStatus(null);
-
             } catch {
-                console.error('Failed to parse stored route data');
+                console.error('Failed to load stored route data');
                 router.push('/');
             }
-        } else {
-            // No data, redirect back to upload
-            router.push('/');
         }
+        loadData();
     }, [router]);
 
     const handleLandmarksLoaded = useCallback((landmarks: Landmark[]) => {
@@ -365,6 +373,18 @@ export default function ViewPage() {
         canvasRef.current?.exportPNG(fileName);
     };
 
+    // Store modal state
+    const [showStoreModal, setShowStoreModal] = useState(false);
+    const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+
+    const handleBuyPrint = async () => {
+        const dataUrl = await canvasRef.current?.getPreviewDataUrl();
+        if (dataUrl) {
+            setPreviewImageUrl(dataUrl);
+        }
+        setShowStoreModal(true);
+    };
+
     const handleBack = () => {
         sessionStorage.removeItem('routeArtData');
         sessionStorage.removeItem('routeArtFileName');
@@ -392,9 +412,9 @@ export default function ViewPage() {
             <Header showBackButton onBack={handleBack} />
 
             <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
-                <div className={`flex-1 flex items-center justify-center min-h-0 ${isPortrait ? 'py-2 px-4' : 'p-4 lg:p-6'}`}>
+                <div className={`flex-1 flex flex-col items-center justify-center min-h-0 ${isPortrait ? 'py-2 px-4' : 'p-4 lg:p-6'}`}>
                     <div
-                        className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden relative"
+                        className="rounded-lg shadow-[0_8px_30px_rgba(0,0,0,0.12)] overflow-hidden relative"
                         style={isPortrait ? {
                             aspectRatio: '1 / 1.4142',
                             height: 'min(70vh, calc(100vw * 1.4142))',
@@ -421,6 +441,8 @@ export default function ViewPage() {
                             showShading={showShading}
                             shadingIntensity={shadingIntensity}
                             artMode={artMode}
+                            contourIntensity={contourIntensity}
+                            labelSideOverrides={labelSideOverrides}
                             routeHighlight={routeHighlight}
                             routeHighlightIntensity={routeHighlightIntensity}
                             onLandmarksLoaded={handleLandmarksLoaded}
@@ -436,6 +458,9 @@ export default function ViewPage() {
                             message={loadingStatus ?? ""}
                         />
                     </div>
+                    <p className="mt-2 text-xs text-neutral-400 text-center hidden lg:block">
+                        Your adventure, transformed into gallery-quality wall art
+                    </p>
                 </div>
                 <EditPanel
                     landmarks={combinedLandmarks}
@@ -468,6 +493,16 @@ export default function ViewPage() {
                     onShadingIntensityChange={handleShadingIntensityChange}
                     artMode={artMode}
                     onToggleArtMode={handleToggleArtMode}
+                    contourIntensity={contourIntensity}
+                    onContourIntensityChange={setContourIntensity}
+                    labelSideOverrides={labelSideOverrides}
+                    onToggleLabelSide={(id: number) => setLabelSideOverrides(prev => {
+                        const current = prev[id];
+                        if (!current) return { ...prev, [id]: 'right' };
+                        if (current === 'right') return { ...prev, [id]: 'left' };
+                        const { [id]: _, ...rest } = prev;
+                        return rest;
+                    })}
                     routeHighlight={routeHighlight}
                     onToggleRouteHighlight={setRouteHighlight}
                     routeHighlightIntensity={routeHighlightIntensity}
@@ -475,11 +510,21 @@ export default function ViewPage() {
                     showHighlights={showHighlights}
                     onToggleHighlights={setShowHighlights}
                     onExportPNG={handleExportPNG}
+                    onBuyPrint={handleBuyPrint}
                 />
             </div>
             <div className="hidden lg:block">
                 <Footer />
             </div>
+
+            {showStoreModal && (
+                <StoreModal
+                    imageUrl={previewImageUrl || ''}
+                    routeName={statsOverrides.routeName || routeDefaults?.routeName || fileName.replace(/\.[^/.]+$/, '')}
+                    routeId={fileName}
+                    onClose={() => setShowStoreModal(false)}
+                />
+            )}
         </main>
     );
 }

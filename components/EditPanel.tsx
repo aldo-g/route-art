@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronUp, Mountain, Droplets, Triangle, Upload, Trash2, Plus, Star, Download, Heart, X, Settings, ShoppingBag, Coffee, ArrowRight } from 'lucide-react';
+import { ChevronUp, Mountain, Droplets, Triangle, Upload, Trash2, Plus, Star, Download, Heart, X, Settings, ArrowRight, Printer, ArrowLeftRight } from 'lucide-react';
 import { Landmark } from '@/lib/landmarks';
 
 export interface StatsOverrides {
@@ -66,6 +66,9 @@ interface EditPanelProps {
     // Art Mode props
     artMode: boolean;
     onToggleArtMode: (value: boolean) => void;
+    // Contour contrast props
+    contourIntensity: number;
+    onContourIntensityChange: (value: number) => void;
     // Route contrast props
     routeHighlight: boolean;
     onToggleRouteHighlight: (value: boolean) => void;
@@ -74,8 +77,13 @@ interface EditPanelProps {
     // Highlights visibility props
     showHighlights: boolean;
     onToggleHighlights: (value: boolean) => void;
+    // Label side overrides
+    labelSideOverrides: Record<number, 'left' | 'right'>;
+    onToggleLabelSide: (id: number) => void;
     // Download props
     onExportPNG: () => void;
+    // Store props
+    onBuyPrint: () => void;
 }
 
 const getLandmarkIcon = (type: Landmark['type']) => {
@@ -386,13 +394,18 @@ export default function EditPanel({
     onShadingIntensityChange,
     artMode: _artMode,
     onToggleArtMode: _onToggleArtMode,
+    contourIntensity,
+    onContourIntensityChange,
     routeHighlight,
     onToggleRouteHighlight,
     routeHighlightIntensity,
     onRouteHighlightIntensityChange,
     showHighlights,
     onToggleHighlights,
+    labelSideOverrides,
+    onToggleLabelSide,
     onExportPNG,
+    onBuyPrint,
 }: EditPanelProps) {
     // Tour state
     const [showTour, setShowTour] = useState(false);
@@ -889,6 +902,25 @@ export default function EditPanel({
                                 id="showWater"
                             />
 
+                            {/* Contour contrast with slider directly below */}
+                            <div className="flex items-center justify-between py-1">
+                                <span className="text-sm text-neutral-700">Contour contrast</span>
+                            </div>
+                            <div className="pl-4 pb-1">
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.05"
+                                        value={contourIntensity}
+                                        onChange={(e) => onContourIntensityChange(parseFloat(e.target.value))}
+                                        className="flex-1 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-neutral-900"
+                                    />
+                                    <span className="text-xs text-neutral-400 tabular-nums w-8">{Math.round(contourIntensity * 100)}%</span>
+                                </div>
+                            </div>
+
                             {/* Relief shading with slider directly below */}
                             <ToggleRow
                                 label="Relief shading"
@@ -1115,6 +1147,15 @@ export default function EditPanel({
                                                                 )}
                                                             </p>
                                                         </div>
+                                                        {selectedLandmarkIds.has(landmark.id) && (
+                                                            <button
+                                                                onClick={() => onToggleLabelSide(landmark.id)}
+                                                                title="Swap label side"
+                                                                className={`p-0.5 rounded transition-colors ${labelSideOverrides[landmark.id] ? 'text-neutral-700 bg-neutral-200' : 'text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100'}`}
+                                                            >
+                                                                <ArrowLeftRight className="w-3 h-3" />
+                                                            </button>
+                                                        )}
                                                         {landmark.isCustom && (
                                                             <button
                                                                 onClick={() => onDeleteCustomLandmark(landmark.id)}
@@ -1218,81 +1259,83 @@ export default function EditPanel({
                 </div>
 
                 {/* ========== SECTION 4: Export (Sticky Bottom) ========== */}
-                <div id="export-section" className="p-4 border-t border-neutral-200 bg-white space-y-3">
+                <div id="export-section" className="p-4 border-t border-neutral-200 bg-white space-y-4">
                     <SectionHeader title="Export" />
 
-                    {/* Primary Button */}
-                    <button
-                        onClick={handleDownloadPNG}
-                        className="w-full flex items-center justify-center gap-2 py-3 bg-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-neutral-800 transition-colors shadow-sm"
-                    >
-                        <Download className="w-4 h-4" />
-                        Download Image
-                    </button>
-
-                    {/* Secondary Buttons */}
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* Print */}
+                    <div className="space-y-1.5">
+                        <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Print</p>
                         <button
-                            disabled
-                            className="flex flex-col items-center justify-center gap-1 py-2.5 px-2 border border-neutral-200 text-neutral-400 text-xs rounded-lg cursor-not-allowed"
+                            onClick={onBuyPrint}
+                            className="w-full flex items-center justify-center gap-2 py-3 bg-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-neutral-800 transition-colors shadow-sm"
                         >
-                            <ShoppingBag className="w-4 h-4" />
-                            <span>Buy Print</span>
+                            <Printer className="w-4 h-4" />
+                            Buy Museum-Quality Print
                         </button>
-                        <a
-                            href="https://ko-fi.com/aligrant"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex flex-col items-center justify-center gap-1 py-2.5 px-2 border border-neutral-200 text-neutral-600 text-xs rounded-lg hover:bg-neutral-50 hover:border-neutral-300 transition-colors"
-                        >
-                            <Coffee className="w-4 h-4" />
-                            <span>Tip</span>
-                        </a>
+                        <p className="text-[10px] text-neutral-400 text-center">Printed on archival matte paper</p>
                     </div>
+
+                    {/* Digital */}
+                    <div className="space-y-1.5">
+                        <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Digital</p>
+                        <button
+                            onClick={handleDownloadPNG}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 border border-neutral-200 text-neutral-700 text-sm font-medium rounded-xl hover:bg-neutral-50 hover:border-neutral-300 transition-colors"
+                        >
+                            <Download className="w-4 h-4" />
+                            Download Image
+                        </button>
+                        <p className="text-[10px] text-neutral-400 text-center">High-res PNG, print-ready at A1–A4</p>
+                    </div>
+
                 </div>
 
-                {/* Tip Modal */}
-                {showTipModal && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-xl shadow-xl max-w-sm mx-4 overflow-hidden relative">
-                            <div className="p-6 text-center">
-                                <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <Heart className="w-6 h-6 text-pink-500" />
-                                </div>
-                                <h3 className="text-lg font-semibold text-neutral-900 mb-2">
-                                    Enjoy your download!
-                                </h3>
-                                <p className="text-sm text-neutral-600 mb-6">
-                                    If you found this tool useful, consider supporting its development with a small tip.
-                                </p>
-                                <div className="space-y-3">
-                                    <a
-                                        href="https://ko-fi.com/aligrant"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="w-full flex items-center justify-center gap-2 py-3 bg-[#FF5E5B] text-white text-sm font-medium rounded-lg hover:bg-[#e54e4b] transition-colors"
-                                    >
-                                        <Heart className="w-4 h-4" />
-                                        Support on Ko-fi
-                                    </a>
-                                    <button
-                                        onClick={() => setShowTipModal(false)}
-                                        className="w-full py-2 text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
-                                    >
-                                        Maybe later
-                                    </button>
-                                </div>
+            </div>
+
+            {/* Tip Modal — rendered outside panel div so it covers everything */}
+            {showTipModal && (
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-6">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-10 relative text-center">
+                        <button
+                            onClick={() => setShowTipModal(false)}
+                            className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-neutral-600 transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        <div className="space-y-6">
+                            <div className="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center mx-auto">
+                                <Heart className="w-8 h-8 text-pink-500" />
                             </div>
-                            <button
-                                onClick={() => setShowTipModal(false)}
-                                className="absolute top-3 right-3 p-1 text-neutral-400 hover:text-neutral-600 transition-colors"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
+                            <div>
+                                <h2 className="text-2xl font-semibold text-neutral-900">
+                                    Enjoy your download!
+                                </h2>
+                                <p className="mt-3 text-neutral-500 leading-relaxed">
+                                    This tool is free to use. If you found it useful, a small tip helps keep it running and improving.
+                                </p>
+                            </div>
+                            <div className="space-y-3 pt-2">
+                                <a
+                                    href="https://ko-fi.com/aligrant"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-neutral-800 transition-colors"
+                                >
+                                    <Heart className="w-4 h-4" />
+                                    Support on Ko-fi
+                                </a>
+                                <button
+                                    onClick={() => setShowTipModal(false)}
+                                    className="w-full py-3 text-sm text-neutral-400 hover:text-neutral-600 transition-colors"
+                                >
+                                    Maybe later
+                                </button>
+                            </div>
                         </div>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
         </>
     );
 }
