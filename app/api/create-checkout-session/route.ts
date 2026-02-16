@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { PRINT_SIZES, PrintSize } from '@/config/products';
 import { savePoster } from '@/lib/savePoster';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 function getStripe() {
     return new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
         // Record order in Supabase
         if (posterId) {
-            await supabase.from('orders').insert({
+            await getSupabase().from('orders').insert({
                 poster_id: posterId,
                 stripe_session_id: session.id,
                 size,

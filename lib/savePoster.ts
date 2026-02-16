@@ -1,4 +1,4 @@
-import { supabase } from "./supabase"
+import { getSupabase } from "./supabase"
 import { v4 as uuidv4 } from "uuid"
 
 export async function savePoster({
@@ -10,6 +10,7 @@ export async function savePoster({
   routeName: string
   config: Record<string, unknown>
 }) {
+  const supabase = getSupabase()
   const id = uuidv4()
   const filePath = `${id}.png`
 
