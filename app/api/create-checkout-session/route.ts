@@ -62,6 +62,15 @@ export async function POST(request: NextRequest) {
                 },
             ],
             mode: 'payment',
+            shipping_address_collection: {
+                allowed_countries: [
+                    'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR',
+                    'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL',
+                    'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE',
+                    'GB', 'CH', 'NO', 'IS',
+                    'US', 'CA', 'AU', 'NZ', 'JP',
+                ],
+            },
             success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${appUrl}/checkout/cancel`,
             metadata: {
