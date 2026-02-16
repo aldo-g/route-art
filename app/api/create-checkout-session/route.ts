@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { PRINT_SIZES, PrintSize } from '@/config/products';
+import { PRODUCTS, getVariant, PrintSize, ProductType } from '@/config/products';
+import { CURRENCIES, CurrencyConfig, convertPrice } from '@/config/currency';
 import { savePoster } from '@/lib/savePoster';
 import { getSupabase } from '@/lib/supabase';
 
@@ -10,57 +11,80 @@ function getStripe() {
     });
 }
 
+interface CheckoutItem {
+    routeId: string;
+    routeName: string;
+    productType: ProductType;
+    size: PrintSize;
+    quantity: number;
+    imageBase64: string;
+    config?: Record<string, unknown>;
+}
+
 export async function POST(request: NextRequest) {
     try {
         const stripe = getStripe();
-        const { routeId, size, imageBase64, routeName, config } = await request.json();
+        const body = await request.json();
 
-        if (!routeId || !size || !routeName) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        const items: CheckoutItem[] = body.items;
+        const currencyCode = (body.currency || 'eur').toLowerCase();
+        const currency: CurrencyConfig = Object.values(CURRENCIES).find(c => c.code === currencyCode) || CURRENCIES.EUR;
+
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return NextResponse.json({ error: 'No items provided' }, { status: 400 });
         }
 
-        const sizeConfig = PRINT_SIZES[size as PrintSize];
-        if (!sizeConfig) {
-            return NextResponse.json({ error: 'Invalid size' }, { status: 400 });
-        }
+        // Upload all posters in parallel
+        const uploadResults = await Promise.all(
+            items.map(async (item) => {
+                const productType = item.productType || 'poster';
+                const product = PRODUCTS[productType];
+                const variant = getVariant(productType, item.size);
+                if (!variant) throw new Error(`Invalid product/size: ${productType}/${item.size}`);
 
-        // Upload poster to Supabase storage
-        let posterId: string | undefined;
-        let posterImageUrl: string | undefined;
+                let posterId: string | undefined;
+                let posterImageUrl: string | undefined;
 
-        if (imageBase64) {
-            const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-            const buffer = Buffer.from(base64Data, 'base64');
-            const imageBlob = new Blob([buffer], { type: 'image/png' });
+                if (item.imageBase64) {
+                    const base64Data = item.imageBase64.replace(/^data:image\/\w+;base64,/, '');
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    const imageBlob = new Blob([buffer], { type: 'image/png' });
 
-            const result = await savePoster({
-                imageBlob,
-                routeName,
-                config: config || {},
-            });
+                    const result = await savePoster({
+                        imageBlob,
+                        routeName: item.routeName,
+                        config: item.config || {},
+                    });
 
-            posterId = result.posterId;
-            posterImageUrl = result.imageUrl;
-        }
+                    posterId = result.posterId;
+                    posterImageUrl = result.imageUrl;
+                }
+
+                return { item, product, variant, posterId, posterImageUrl };
+            })
+        );
+
+        // Build Stripe line items with converted currency
+        const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = uploadResults.map(
+            ({ item, product, variant, posterImageUrl }) => ({
+                price_data: {
+                    currency: currency.code,
+                    product_data: {
+                        name: `${item.routeName} — ${product.label} (${item.size})`,
+                        description: `${product.description} ${variant.dimensions}`,
+                        images: posterImageUrl ? [posterImageUrl] : [],
+                    },
+                    unit_amount: convertPrice(variant.price, currency),
+                },
+                quantity: item.quantity || 1,
+            })
+        );
 
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
-            line_items: [
-                {
-                    price_data: {
-                        currency: 'eur',
-                        product_data: {
-                            name: `${routeName} — ${sizeConfig.label} Print`,
-                            description: `Museum-quality archival matte paper (200gsm), giclée printed. ${sizeConfig.dimensions}`,
-                            images: posterImageUrl ? [posterImageUrl] : [],
-                        },
-                        unit_amount: sizeConfig.price,
-                    },
-                    quantity: 1,
-                },
-            ],
+            line_items: lineItems,
             mode: 'payment',
             shipping_address_collection: {
                 allowed_countries: [
@@ -74,21 +98,27 @@ export async function POST(request: NextRequest) {
             success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${appUrl}/checkout/cancel`,
             metadata: {
-                poster_id: posterId || '',
-                size,
-                routeName,
+                item_count: String(items.length),
+                currency: currency.code,
             },
         });
 
-        // Record order in Supabase
-        if (posterId) {
-            await getSupabase().from('orders').insert({
+        // Insert one order row per item
+        const orderRows = uploadResults
+            .filter(({ posterId }) => posterId)
+            .map(({ item, variant, posterId }) => ({
                 poster_id: posterId,
                 stripe_session_id: session.id,
-                size,
-                price: sizeConfig.price,
+                product_type: item.productType || 'poster',
+                size: item.size,
+                quantity: item.quantity || 1,
+                price: convertPrice(variant.price, currency),
+                currency: currency.code,
                 status: 'pending',
-            });
+            }));
+
+        if (orderRows.length > 0) {
+            await getSupabase().from('orders').insert(orderRows);
         }
 
         return NextResponse.json({ url: session.url });

@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object as Stripe.Checkout.Session;
 
-        const shipping = session.shipping_details;
+        const shipping = session.collected_information?.shipping_details;
 
         const { error } = await getSupabase()
             .from('orders')

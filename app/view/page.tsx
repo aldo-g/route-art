@@ -12,6 +12,8 @@ import Footer from '@/components/Footer';
 import { Landmark } from '@/lib/landmarks';
 import { getRouteData } from '@/lib/storage';
 import StoreModal from '@/components/store/StoreModal';
+import { useCart } from '@/components/cart/CartProvider';
+import { PrintSize, ProductType } from '@/config/products';
 
 export default function ViewPage() {
     const router = useRouter();
@@ -402,6 +404,7 @@ export default function ViewPage() {
     // Store modal state
     const [showStoreModal, setShowStoreModal] = useState(false);
     const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+    const { addItem, setCartOpen } = useCart();
 
     const handleBuyPrint = async () => {
         const dataUrl = await canvasRef.current?.getPreviewDataUrl();
@@ -409,6 +412,21 @@ export default function ViewPage() {
             setPreviewImageUrl(dataUrl);
         }
         setShowStoreModal(true);
+    };
+
+    const handleAddToCart = async (productType: ProductType, size: PrintSize, quantity: number) => {
+        if (!previewImageUrl) return;
+        const name = statsOverrides.routeName || routeDefaults?.routeName || fileName.replace(/\.[^/.]+$/, '');
+        await addItem({
+            routeName: name,
+            routeId: fileName,
+            productType,
+            size,
+            quantity,
+            imageDataUrl: previewImageUrl,
+        });
+        setShowStoreModal(false);
+        setCartOpen(true);
     };
 
     const handleBack = () => {
@@ -549,6 +567,7 @@ export default function ViewPage() {
                     routeName={statsOverrides.routeName || routeDefaults?.routeName || fileName.replace(/\.[^/.]+$/, '')}
                     routeId={fileName}
                     onClose={() => setShowStoreModal(false)}
+                    onAddToCart={handleAddToCart}
                 />
             )}
         </main>

@@ -1,13 +1,21 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import Link from 'next/link';
 import { CheckCircle } from 'lucide-react';
+import { clearCart } from '@/lib/cart';
 
 function SuccessContent() {
     const searchParams = useSearchParams();
     const sessionId = searchParams.get('session_id');
+
+    useEffect(() => {
+        clearCart().catch(() => {});
+        if (sessionId) {
+            fetch(`/api/verify-session?session_id=${sessionId}`).catch(() => {});
+        }
+    }, [sessionId]);
 
     return (
         <main className="min-h-screen flex items-center justify-center bg-white p-6">
