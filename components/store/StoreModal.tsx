@@ -28,12 +28,19 @@ export default function StoreModal({ imageUrl, routeName, routeId, onClose }: St
                 body: JSON.stringify({
                     routeId,
                     size: selectedSize,
-                    imageUrl,
+                    imageBase64: imageUrl,
                     routeName,
                 }),
             });
 
             const data = await res.json();
+
+            if (!res.ok) {
+                console.error('Checkout API error:', data.error);
+                alert(data.error || 'Something went wrong. Please try again.');
+                setLoading(false);
+                return;
+            }
 
             if (data.url) {
                 window.location.href = data.url;
@@ -123,7 +130,7 @@ export default function StoreModal({ imageUrl, routeName, routeId, onClose }: St
                         disabled={loading}
                         className="w-full py-3.5 bg-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-neutral-800 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {loading ? 'Redirecting...' : 'Continue to checkout'}
+                        {loading ? 'Uploading & redirecting...' : 'Continue to checkout'}
                     </button>
                 </div>
             </div>

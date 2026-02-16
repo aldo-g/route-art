@@ -2,7 +2,7 @@
 // app/page.tsx
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { MapPin, Printer, Palette, Mountain, Upload, SlidersHorizontal, Download } from 'lucide-react';
@@ -12,13 +12,7 @@ import ImageCarousel from '@/components/ImageCarousel';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { setRouteData } from '@/lib/storage';
-
-const mockups = [
-  { src: '/images/mock_ups/Brown Modern Minimal Living Room Horizontal Wall Art Poster Frame Mockup Instagram Post.png', alt: 'West Highland Way - living room' },
-  { src: '/images/mock_ups/Brown Modern Interior Living Room Gallery Wall Art Poster Frame Mockup Instagram Post.png', alt: 'Gallery wall with multiple maps' },
-  { src: '/images/mock_ups/White and Blue Minimalist Wall Frame Mockup Instagram Post.png', alt: 'West Highland Way - modern interior' },
-  { src: '/images/mock_ups/Brown Minimalist 3D Illustration Wall Frame Mockup Instagram Post.png', alt: 'Melbourne to Adelaide - dark theme' },
-];
+import { getAllPresets, loadPresetRoute, PosterPreset } from '@/lib/presets';
 
 const features = [
   { icon: Mountain, text: 'Perfect for hikers, runners, and cyclists' },
@@ -36,11 +30,26 @@ const steps = [
 export default function Home() {
   const router = useRouter();
   const uploadRef = useRef<HTMLDivElement>(null);
+  const [presets, setPresets] = useState<PosterPreset[]>([]);
+  const [loadingPresetId, setLoadingPresetId] = useState<string | null>(null);
+
+  useEffect(() => {
+    getAllPresets().then(setPresets).catch(() => {});
+  }, []);
 
   const handleDataLoaded = async (data: unknown, name: string) => {
     await setRouteData('routeArtData', data);
     sessionStorage.setItem('routeArtFileName', name);
     router.push('/view');
+  };
+
+  const handlePresetClick = async (presetId: string) => {
+    setLoadingPresetId(presetId);
+    const success = await loadPresetRoute(presetId);
+    if (success) {
+      router.push('/view');
+    }
+    setLoadingPresetId(null);
   };
 
   const scrollToUpload = () => {
@@ -107,29 +116,50 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Examples Section */}
+      {/* Iconic Routes Section */}
       <section id="examples" className="px-6 pt-20 pb-20">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-2xl font-semibold text-neutral-900 text-center">
-            Real adventures turned into wall art
+            Iconic Routes
           </h2>
           <p className="mt-2 text-neutral-500 text-center text-sm">
-            Every map is unique to your route.
+            Explore legendary trails — click to preview and customize.
           </p>
-          <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {mockups.map((mockup) => (
-              <div
-                key={mockup.src}
-                className="relative aspect-square rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+          <div className="mt-10 grid grid-cols-2 lg:grid-cols-3 gap-4">
+            {presets.map((preset) => (
+              <button
+                key={preset.id}
+                onClick={() => handlePresetClick(preset.id)}
+                disabled={loadingPresetId !== null}
+                className="group relative rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all text-left bg-white border border-neutral-200 hover:border-neutral-300 disabled:opacity-60"
               >
-                <Image
-                  src={mockup.src}
-                  alt={mockup.alt}
-                  fill
-                  className="object-cover"
-                  loading="lazy"
-                />
-              </div>
+                {/* Thumbnail */}
+                <div className="relative aspect-[3/4] bg-neutral-100">
+                  <Image
+                    src={preset.preview.thumbnail}
+                    alt={preset.name}
+                    fill
+                    className="object-cover"
+                    loading="lazy"
+                  />
+                  {loadingPresetId === preset.id && (
+                    <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
+                      <div className="w-5 h-5 border-2 border-neutral-900 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                    <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity tracking-wide">
+                      Customise in editor
+                    </span>
+                  </div>
+                </div>
+                {/* Info */}
+                <div className="p-3">
+                  <p className="text-sm font-medium text-neutral-900 truncate">{preset.name}</p>
+                  <p className="text-xs text-neutral-400 mt-0.5">{preset.location}</p>
+                </div>
+              </button>
             ))}
           </div>
         </div>

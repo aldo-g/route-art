@@ -1,0 +1,346 @@
+{
+  "presets": [
+    {
+      "id": "tour-du-mont-blanc",
+      "name": "Tour du Mont Blanc",
+      "location": "France / Italy / Switzerland",
+      "countryCode": "FR",
+      "source": {
+        "type": "gpx",
+        "path": "/presets/Tour_du_Mont_Blanc.gpx"
+      },
+      "map": {
+        "center": [45.832, 6.865],
+        "zoom": 10.5,
+        "bearing": 0,
+        "pitch": 0,
+        "padding": 80
+      },
+      "style": {
+        "theme": "light",
+        "showWater": true,
+        "contourContrast": 0.50,
+        "reliefShading": 0.75,
+        "routeContrast": 0.50
+      },
+      "layout": {
+        "orientation": "portrait",
+        "showFlag": true,
+        "showStats": true
+      },
+      "stats": {
+        "distanceKm": 164.0,
+        "elevationGain": 14101,
+        "elevationLoss": 14101
+      },
+      "preview": {
+        "thumbnail": "/presets/previews/Tour_du_Mont_Blanc_TMB.png",
+        "hero": "/presets/previews/Tour_du_Mont_Blanc_TMB.png"
+      }
+    },
+    {
+      "id": "everest-base-camp",
+      "name": "Everest Base Camp Trek",
+      "location": "Nepal",
+      "countryCode": "NP",
+      "source": {
+        "type": "gpx",
+        "path": "/presets/Everest_Base_Camp_Trek.gpx"
+      },
+      "map": {
+        "center": [27.932, 86.806],
+        "zoom": 10.5,
+        "bearing": 0,
+        "pitch": 0,
+        "padding": 80
+      },
+      "style": {
+        "theme": "dark",
+        "showWater": true,
+        "contourContrast": 0.65,
+        "reliefShading": 0.0,
+        "routeContrast": 0.30
+      },
+      "layout": {
+        "orientation": "portrait",
+        "showFlag": true,
+        "showStats": true
+      },
+      "stats": {
+        "distanceKm": 103.5,
+        "elevationGain": 10541,
+        "elevationLoss": 10541
+      },
+      "preview": {
+        "thumbnail": "/presets/previews/Everest_Base_Camp_Trek.png",
+        "hero": "/presets/previews/Everest_Base_Camp_Trek.png"
+      }
+    },
+    {
+      "id": "west-highland-way",
+      "name": "West Highland Way",
+      "location": "Scotland",
+      "countryCode": "GB",
+      "source": {
+        "type": "gpx",
+        "path": "/presets/The_West_Highland_Way.gpx"
+      },
+      "map": {
+        "center": [56.37, -4.87],
+        "zoom": 9.0,
+        "bearing": 0,
+        "pitch": 0,
+        "padding": 80
+      },
+      "style": {
+        "theme": "light",
+        "showWater": true,
+        "contourContrast": 0.50,
+        "reliefShading": 0.90,
+        "routeContrast": 0.50
+      },
+      "layout": {
+        "orientation": "portrait",
+        "showFlag": true,
+        "showStats": true
+      },
+      "stats": {
+        "distanceKm": 153.3,
+        "elevationGain": 8245,
+        "elevationLoss": 8294
+      },
+      "preview": {
+        "thumbnail": "/presets/previews/The_West_Highland_Way.png",
+        "hero": "/presets/previews/The_West_Highland_Way.png"
+      }
+    },
+    {
+      "id": "milford-track",
+      "name": "Milford Track",
+      "location": "New Zealand",
+      "countryCode": "NZ",
+      "source": {
+        "type": "gpx",
+        "path": "/presets/Milford_Track.gpx"
+      },
+      "map": {
+        "center": [-44.9, 167.7],
+        "zoom": 11.0,
+        "bearing": 0,
+        "pitch": 0,
+        "padding": 80
+      },
+      "style": {
+        "theme": "dark",
+        "showWater": true,
+        "contourContrast": 0.55,
+        "reliefShading": 0.20,
+        "routeContrast": 0.65
+      },
+      "layout": {
+        "orientation": "portrait",
+        "showFlag": true,
+        "showStats": true
+      },
+      "stats": {
+        "distanceKm": 54.0,
+        "elevationGain": 3454,
+        "elevationLoss": 3659
+      },
+      "preview": {
+        "thumbnail": "/presets/previews/Milford_Track.png",
+        "hero": "/presets/previews/Milford_Track.png"
+      }
+    },
+    {
+      "id": "camino-de-santiago",
+      "name": "Camino de Santiago",
+      "location": "Spain",
+      "countryCode": "ES",
+      "source": {
+        "type": "gpx",
+        "path": "/presets/Camino_de_Santiago.gpx"
+      },
+      "map": {
+        "center": [42.75, -5.50],
+        "zoom": 8.0,
+        "bearing": 0,
+        "pitch": 0,
+        "padding": 80
+      },
+      "style": {
+        "theme": "light",
+        "showWater": true,
+        "contourContrast": 0.15,
+        "reliefShading": 0.75,
+        "routeContrast": 0.70
+      },
+      "layout": {
+        "orientation": "portrait",
+        "showFlag": true,
+        "showStats": true
+      },
+      "stats": {
+        "distanceKm": 849,
+        "elevationGain": 28122,
+        "elevationLoss": 28236
+      },
+      "preview": {
+        "thumbnail": "/presets/previews/Camino_de_Santiago_en_28_Jours__SaintJeanPieddePort__Finisterre.png",
+        "hero": "/presets/previews/Camino_de_Santiago_en_28_Jours__SaintJeanPieddePort__Finisterre.png"
+      }
+    },
+    {
+      "id": "mount-fuji",
+      "name": "Mount Fuji",
+      "location": "Japan",
+      "countryCode": "JP",
+      "source": {
+        "type": "gpx",
+        "path": "/presets/Mount_Fuji.gpx"
+      },
+      "map": {
+        "center": [35.36, 138.73],
+        "zoom": 12.0,
+        "bearing": 0,
+        "pitch": 0,
+        "padding": 80
+      },
+      "style": {
+        "theme": "dark",
+        "showWater": true,
+        "contourContrast": 0.85,
+        "reliefShading": 0.20,
+        "routeContrast": 0.50
+      },
+      "layout": {
+        "orientation": "portrait",
+        "showFlag": true,
+        "showStats": true
+      },
+      "stats": {
+        "distanceKm": 14,
+        "elevationGain": 1848,
+        "elevationLoss": 1848
+      },
+      "preview": {
+        "thumbnail": "/presets/previews/富士山_吉田ルート.png",
+        "hero": "/presets/previews/富士山_吉田ルート.png"
+      }
+    },
+    {
+      "id": "john-muir-trail",
+      "name": "John Muir Trail",
+      "location": "California, USA",
+      "countryCode": "US",
+      "source": {
+        "type": "gpx",
+        "path": "/presets/John_Muir_Trail.gpx"
+      },
+      "map": {
+        "center": [37.2, -118.7],
+        "zoom": 9.0,
+        "bearing": 0,
+        "pitch": 0,
+        "padding": 80
+      },
+      "style": {
+        "theme": "light",
+        "showWater": true,
+        "contourContrast": 0.35,
+        "reliefShading": 0.85,
+        "routeContrast": 0.65
+      },
+      "layout": {
+        "orientation": "portrait",
+        "showFlag": true,
+        "showStats": true
+      },
+      "stats": {
+        "distanceKm": 352.9,
+        "elevationGain": 18569,
+        "elevationLoss": 17261
+      },
+      "preview": {
+        "thumbnail": "/presets/previews/John_Muir_Trail.png",
+        "hero": "/presets/previews/John_Muir_Trail.png"
+      }
+    },
+    {
+      "id": "torres-del-paine",
+      "name": "Torres del Paine \"W\" Trek",
+      "location": "Patagonia, Chile",
+      "countryCode": "CL",
+      "source": {
+        "type": "gpx",
+        "path": "/presets/Torres_del_Paine_Circuito_W.gpx"
+      },
+      "map": {
+        "center": [-51.0, -73.1],
+        "zoom": 11.0,
+        "bearing": 0,
+        "pitch": 0,
+        "padding": 80
+      },
+      "style": {
+        "theme": "dark",
+        "showWater": true,
+        "contourContrast": 0.70,
+        "reliefShading": 0.35,
+        "routeContrast": 0.40
+      },
+      "layout": {
+        "orientation": "portrait",
+        "showFlag": true,
+        "showStats": true
+      },
+      "stats": {
+        "distanceKm": 73.5,
+        "elevationGain": 4837,
+        "elevationLoss": 4926
+      },
+      "preview": {
+        "thumbnail": "/presets/previews/Torres_del_Paine_W_Trek.png",
+        "hero": "/presets/previews/Torres_del_Paine_W_Trek.png"
+      }
+    },
+    {
+      "id": "overland-track",
+      "name": "Overland Track",
+      "location": "Tasmania, Australia",
+      "countryCode": "AU",
+      "source": {
+        "type": "gpx",
+        "path": "/presets/Overland_Track.gpx"
+      },
+      "map": {
+        "center": [-41.7, 146.0],
+        "zoom": 10.5,
+        "bearing": 0,
+        "pitch": 0,
+        "padding": 80
+      },
+      "style": {
+        "theme": "light",
+        "showWater": true,
+        "contourContrast": 0.20,
+        "reliefShading": 0.70,
+        "routeContrast": 0.70
+      },
+      "layout": {
+        "orientation": "portrait",
+        "showFlag": true,
+        "showStats": true
+      },
+      "stats": {
+        "distanceKm": 78.6,
+        "elevationGain": 4287,
+        "elevationLoss": 4408
+      },
+      "preview": {
+        "thumbnail": "/presets/previews/Overland Track.png",
+        "hero": "/presets/previews/Overland Track.png"
+      }
+    }
+  ]
+}

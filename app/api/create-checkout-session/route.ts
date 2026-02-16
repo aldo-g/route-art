@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { PRINT_SIZES, PrintSize } from '@/config/products';
-import { createOrder } from '@/lib/orders';
+import { savePoster } from '@/lib/savePoster';
+import { supabase } from '@/lib/supabase';
 
 function getStripe() {
     return new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -12,7 +13,7 @@ function getStripe() {
 export async function POST(request: NextRequest) {
     try {
         const stripe = getStripe();
-        const { routeId, size, imageUrl, routeName } = await request.json();
+        const { routeId, size, imageBase64, routeName, config } = await request.json();
 
         if (!routeId || !size || !routeName) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -21,6 +22,25 @@ export async function POST(request: NextRequest) {
         const sizeConfig = PRINT_SIZES[size as PrintSize];
         if (!sizeConfig) {
             return NextResponse.json({ error: 'Invalid size' }, { status: 400 });
+        }
+
+        // Upload poster to Supabase storage
+        let posterId: string | undefined;
+        let posterImageUrl: string | undefined;
+
+        if (imageBase64) {
+            const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+            const buffer = Buffer.from(base64Data, 'base64');
+            const imageBlob = new Blob([buffer], { type: 'image/png' });
+
+            const result = await savePoster({
+                imageBlob,
+                routeName,
+                config: config || {},
+            });
+
+            posterId = result.posterId;
+            posterImageUrl = result.imageUrl;
         }
 
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -34,7 +54,7 @@ export async function POST(request: NextRequest) {
                         product_data: {
                             name: `${routeName} — ${sizeConfig.label} Print`,
                             description: `Museum-quality archival matte paper (200gsm), giclée printed. ${sizeConfig.dimensions}`,
-                            images: imageUrl ? [imageUrl] : [],
+                            images: posterImageUrl ? [posterImageUrl] : [],
                         },
                         unit_amount: sizeConfig.price,
                     },
@@ -45,23 +65,22 @@ export async function POST(request: NextRequest) {
             success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${appUrl}/checkout/cancel`,
             metadata: {
-                routeId,
+                poster_id: posterId || '',
                 size,
-                imageUrl: imageUrl || '',
                 routeName,
             },
         });
 
-        // Record order
-        createOrder({
-            stripe_session_id: session.id,
-            route_id: routeId,
-            route_name: routeName,
-            size,
-            image_url: imageUrl || '',
-            price: sizeConfig.price,
-            status: 'pending',
-        });
+        // Record order in Supabase
+        if (posterId) {
+            await supabase.from('orders').insert({
+                poster_id: posterId,
+                stripe_session_id: session.id,
+                size,
+                price: sizeConfig.price,
+                status: 'pending',
+            });
+        }
 
         return NextResponse.json({ url: session.url });
     } catch (err) {

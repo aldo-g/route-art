@@ -122,6 +122,32 @@ export default function ViewPage() {
                     setArtMode(storedArtMode === 'true');
                 }
 
+                // Restore preset-compatible settings
+                const storedDarkMode = sessionStorage.getItem('routeArtDarkMode');
+                if (storedDarkMode !== null) {
+                    setIsDarkMode(storedDarkMode === 'true');
+                }
+
+                const storedContourIntensity = sessionStorage.getItem('routeArtContourIntensity');
+                if (storedContourIntensity !== null) {
+                    setContourIntensity(parseFloat(storedContourIntensity));
+                }
+
+                const storedRouteHighlightIntensity = sessionStorage.getItem('routeArtRouteHighlightIntensity');
+                if (storedRouteHighlightIntensity !== null) {
+                    setRouteHighlightIntensity(parseFloat(storedRouteHighlightIntensity));
+                }
+
+                const storedIsPortrait = sessionStorage.getItem('routeArtIsPortrait');
+                if (storedIsPortrait !== null) {
+                    setIsPortrait(storedIsPortrait === 'true');
+                }
+
+                const storedCountryCode = sessionStorage.getItem('routeArtCountryCode');
+                if (storedCountryCode) {
+                    setCountryCode(storedCountryCode);
+                }
+
                 setLoadingStatus(null);
             } catch {
                 console.error('Failed to load stored route data');
