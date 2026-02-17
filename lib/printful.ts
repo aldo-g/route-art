@@ -65,3 +65,76 @@ export async function getShippingRates(
 
     return results;
 }
+
+// --- Order Creation ---
+
+export interface PrintfulRecipient {
+    name: string;
+    email?: string;
+    address1: string;
+    address2?: string;
+    city: string;
+    state_code?: string;
+    country_code: string;
+    zip: string;
+}
+
+export interface PrintfulOrderItem {
+    variantId: string;   // from config/products.ts printfulVariantId
+    quantity: number;
+    imageUrl: string;    // public Supabase Storage URL
+}
+
+export interface PrintfulOrderResult {
+    printfulOrderId: number;
+    status: string;
+}
+
+/**
+ * Create a draft order in Printful.
+ * Orders are NOT auto-confirmed — review in Printful dashboard before confirming.
+ * Set `confirm: true` in the body when ready for auto-fulfillment.
+ */
+export async function createPrintfulOrder(params: {
+    externalId: string;
+    recipient: PrintfulRecipient;
+    items: PrintfulOrderItem[];
+}): Promise<PrintfulOrderResult | null> {
+    const body = {
+        external_id: params.externalId,
+        recipient: params.recipient,
+        items: params.items.map(item => ({
+            variant_id: parseInt(item.variantId, 10),
+            quantity: item.quantity,
+            files: [
+                {
+                    type: 'default',
+                    url: item.imageUrl,
+                },
+            ],
+        })),
+    };
+
+    try {
+        const res = await fetch(`${PRINTFUL_API}/orders`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            console.error('Printful create order error:', data);
+            return null;
+        }
+
+        return {
+            printfulOrderId: data.result.id,
+            status: data.result.status,
+        };
+    } catch (err) {
+        console.error('Printful create order failed:', err);
+        return null;
+    }
+}

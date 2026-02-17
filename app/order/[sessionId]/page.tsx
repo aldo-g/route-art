@@ -2,7 +2,7 @@ import { getSupabase } from '@/lib/supabase';
 import { notFound } from 'next/navigation';
 import { PRODUCTS, ProductType, PrintSize } from '@/config/products';
 import { CURRENCIES, CurrencyConfig, formatPriceWithCurrency } from '@/config/currency';
-import { Package, MapPin, CheckCircle, Clock } from 'lucide-react';
+import { Package, MapPin, CheckCircle, Clock, Printer, Truck, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
 interface OrderRow {
@@ -18,6 +18,8 @@ interface OrderRow {
     customer_email: string | null;
     shipping_name: string | null;
     shipping_address: Record<string, string> | null;
+    printful_order_id: string | null;
+    printful_status: string | null;
     created_at: string;
     posters: {
         id: string;
@@ -86,6 +88,7 @@ export default async function OrderPage({
     const shippingName = orders[0].shipping_name;
     const shippingAddress = formatAddress(orders[0].shipping_address);
     const total = orders.reduce((sum, o) => sum + o.price * o.quantity, 0);
+    const printfulStatus = orders[0].printful_status as string | null;
 
     return (
         <main className="min-h-screen bg-neutral-50 py-12 px-4">
@@ -98,17 +101,43 @@ export default async function OrderPage({
                             {orderDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
                     </div>
-                    {status === 'paid' ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 text-green-700 text-xs font-semibold">
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            Paid
-                        </span>
-                    ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-yellow-50 text-yellow-700 text-xs font-semibold">
-                            <Clock className="w-3.5 h-3.5" />
-                            Pending
-                        </span>
-                    )}
+                    <div className="flex flex-col items-end gap-1.5">
+                        {status === 'paid' ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 text-green-700 text-xs font-semibold">
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                Paid
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-yellow-50 text-yellow-700 text-xs font-semibold">
+                                <Clock className="w-3.5 h-3.5" />
+                                Pending
+                            </span>
+                        )}
+                        {printfulStatus === 'submitted' && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                                <Printer className="w-3.5 h-3.5" />
+                                Sent to printer
+                            </span>
+                        )}
+                        {printfulStatus === 'in_production' && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                                <Printer className="w-3.5 h-3.5" />
+                                In production
+                            </span>
+                        )}
+                        {printfulStatus === 'shipped' && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 text-green-700 text-xs font-semibold">
+                                <Truck className="w-3.5 h-3.5" />
+                                Shipped
+                            </span>
+                        )}
+                        {printfulStatus === 'failed' && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-50 text-red-700 text-xs font-semibold">
+                                <AlertCircle className="w-3.5 h-3.5" />
+                                Fulfillment issue
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 {/* Items */}
