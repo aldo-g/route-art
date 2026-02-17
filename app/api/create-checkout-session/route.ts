@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { PRODUCTS, getVariant, PrintSize, ProductType } from '@/config/products';
 import { CURRENCIES, CurrencyConfig, convertPrice } from '@/config/currency';
+import { getShippingRates, ShippingItem } from '@/lib/printful';
 import { savePoster } from '@/lib/savePoster';
 import { getSupabase } from '@/lib/supabase';
 
@@ -27,6 +28,7 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
 
         const items: CheckoutItem[] = body.items;
+        const countryCode: string = body.countryCode || 'DE'; // fallback to Germany for shipping estimate
         const currencyCode = (body.currency || 'eur').toLowerCase();
         const currency: CurrencyConfig = Object.values(CURRENCIES).find(c => c.code === currencyCode) || CURRENCIES.EUR;
 
@@ -80,11 +82,70 @@ export async function POST(request: NextRequest) {
             })
         );
 
+        // Fetch shipping rates from Printful
+        const printfulShippingItems: ShippingItem[] = items
+            .map(item => {
+                const v = PRODUCTS[item.productType || 'poster']?.sizes[item.size];
+                return v?.printfulVariantId ? { variant_id: v.printfulVariantId, quantity: item.quantity || 1 } : null;
+            })
+            .filter((x): x is ShippingItem => x !== null);
+
+        const shippingRates = await getShippingRates(countryCode, printfulShippingItems);
+
+        // Convert Printful shipping rates (in AUD) to Stripe shipping_options in user's currency
+        // AUD rate relative to EUR: use CURRENCIES.AUD.rate to convert AUD → EUR → target currency
+        const audRate = CURRENCIES.AUD?.rate || 1.65;
+        const shippingOptions: Stripe.Checkout.SessionCreateParams.ShippingOption[] = shippingRates
+            .filter(r => r.id === 'STANDARD') // only show standard shipping
+            .map(rate => {
+                const rateAud = parseFloat(rate.rate);
+                // Convert AUD → EUR cents, then EUR cents → target currency
+                const eurCents = Math.round((rateAud / audRate) * 100);
+                const targetAmount = convertPrice(eurCents, currency);
+                const deliveryEstimate = rate.minDeliveryDays === rate.maxDeliveryDays
+                    ? `${rate.minDeliveryDays} business days`
+                    : `${rate.minDeliveryDays}–${rate.maxDeliveryDays} business days`;
+
+                return {
+                    shipping_rate_data: {
+                        type: 'fixed_amount' as const,
+                        fixed_amount: {
+                            amount: targetAmount,
+                            currency: currency.code,
+                        },
+                        display_name: 'Standard Shipping',
+                        delivery_estimate: {
+                            minimum: { unit: 'business_day' as const, value: rate.minDeliveryDays },
+                            maximum: { unit: 'business_day' as const, value: rate.maxDeliveryDays },
+                        },
+                    },
+                };
+            });
+
+        // Fallback if Printful didn't return rates
+        if (shippingOptions.length === 0) {
+            shippingOptions.push({
+                shipping_rate_data: {
+                    type: 'fixed_amount',
+                    fixed_amount: {
+                        amount: convertPrice(500, currency), // €5 fallback
+                        currency: currency.code,
+                    },
+                    display_name: 'Standard Shipping',
+                    delivery_estimate: {
+                        minimum: { unit: 'business_day', value: 5 },
+                        maximum: { unit: 'business_day', value: 14 },
+                    },
+                },
+            });
+        }
+
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             line_items: lineItems,
+            shipping_options: shippingOptions,
             mode: 'payment',
             shipping_address_collection: {
                 allowed_countries: [

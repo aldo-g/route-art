@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, Trash2, ShoppingBag, Minus, Plus } from 'lucide-react';
+import { X, Trash2, ShoppingBag, Minus, Plus, Truck } from 'lucide-react';
+import { toast } from 'sonner';
 import { useCart } from './CartProvider';
 import { PRODUCTS, getVariant } from '@/config/products';
 import { useCurrency } from '@/components/CurrencyProvider';
@@ -65,13 +66,43 @@ function CartItemRow({
 
 export default function CartDrawer() {
     const { items, count, isCartOpen, setCartOpen, removeItem, updateQuantity, clearAll } = useCart();
-    const { formatPrice, currency } = useCurrency();
+    const { formatPrice, currency, countryCode } = useCurrency();
     const [loading, setLoading] = useState(false);
+    const [shippingEstimate, setShippingEstimate] = useState<string | null>(null);
 
     const total = items.reduce((sum, item) => {
         const variant = getVariant(item.productType || 'poster', item.size);
         return sum + (variant?.price || 0) * item.quantity;
     }, 0);
+
+    // Fetch shipping estimate when cart opens with items
+    useEffect(() => {
+        if (!isCartOpen || items.length === 0) return;
+        setShippingEstimate(null);
+
+        const cartItems = items.map(item => ({
+            productType: item.productType || 'poster',
+            size: item.size,
+            quantity: item.quantity,
+        }));
+
+        fetch('/api/shipping-rates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ countryCode: countryCode || 'DE', items: cartItems }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                const standard = data.rates?.find((r: { id: string }) => r.id === 'STANDARD');
+                if (standard) {
+                    // Printful returns rate in AUD — convert to EUR cents then to user currency
+                    const audRate = 1.65; // AUD per EUR
+                    const eurCents = Math.round((parseFloat(standard.rate) / audRate) * 100);
+                    setShippingEstimate(formatPrice(eurCents));
+                }
+            })
+            .catch(() => {});
+    }, [isCartOpen, items, countryCode, formatPrice]);
 
     const handleCheckout = async () => {
         if (items.length === 0) return;
@@ -92,14 +123,14 @@ export default function CartDrawer() {
             const res = await fetch('/api/create-checkout-session', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ items: checkoutItems, currency: currency.code }),
+                body: JSON.stringify({ items: checkoutItems, currency: currency.code, countryCode: countryCode || 'DE' }),
             });
 
             const data = await res.json();
 
             if (!res.ok) {
                 console.error('Checkout API error:', data.error);
-                alert(data.error || 'Something went wrong. Please try again.');
+                toast.error(data.error || 'Something went wrong. Please try again.');
                 setLoading(false);
                 return;
             }
@@ -165,10 +196,21 @@ export default function CartDrawer() {
 
                 {/* Footer */}
                 {items.length > 0 && (
-                    <div className="border-t border-neutral-100 p-5 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm text-neutral-500">Total</span>
-                            <span className="text-xl font-semibold text-neutral-900">{formatPrice(total)}</span>
+                    <div className="border-t border-neutral-100 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] space-y-4">
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-neutral-500">Subtotal</span>
+                                <span className="text-sm font-medium text-neutral-900">{formatPrice(total)}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-neutral-500 flex items-center gap-1.5">
+                                    <Truck className="w-3.5 h-3.5" />
+                                    Shipping
+                                </span>
+                                <span className="text-sm text-neutral-500">
+                                    {shippingEstimate ? `~${shippingEstimate}` : 'Calculated at checkout'}
+                                </span>
+                            </div>
                         </div>
                         <button
                             onClick={handleCheckout}

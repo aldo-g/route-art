@@ -5,6 +5,7 @@ import { CurrencyConfig, CURRENCIES, convertPrice, formatPriceWithCurrency } fro
 
 interface CurrencyContextValue {
     currency: CurrencyConfig;
+    countryCode: string | null;
     /** Convert a EUR price in cents and format for display */
     formatPrice: (eurCents: number) => string;
     /** Convert EUR cents to local currency smallest unit */
@@ -14,6 +15,7 @@ interface CurrencyContextValue {
 
 const CurrencyContext = createContext<CurrencyContextValue>({
     currency: CURRENCIES.EUR,
+    countryCode: null,
     formatPrice: (eurCents: number) => `€${(eurCents / 100).toFixed(0)}`,
     convert: (eurCents: number) => eurCents,
     loading: true,
@@ -21,6 +23,7 @@ const CurrencyContext = createContext<CurrencyContextValue>({
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
     const [currency, setCurrency] = useState<CurrencyConfig>(CURRENCIES.EUR);
+    const [countryCode, setCountryCode] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -35,6 +38,9 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
                         zeroDecimal: data.zeroDecimal,
                     });
                 }
+                if (data.countryCode) {
+                    setCountryCode(data.countryCode);
+                }
             })
             .catch(() => {})
             .finally(() => setLoading(false));
@@ -42,6 +48,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
     const value: CurrencyContextValue = {
         currency,
+        countryCode,
         formatPrice: (eurCents: number) => formatPriceWithCurrency(convertPrice(eurCents, currency), currency),
         convert: (eurCents: number) => convertPrice(eurCents, currency),
         loading,

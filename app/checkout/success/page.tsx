@@ -3,7 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
 import Link from 'next/link';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Package } from 'lucide-react';
 import { clearCart } from '@/lib/cart';
 
 function SuccessContent() {
@@ -34,9 +34,18 @@ function SuccessContent() {
                 </div>
 
                 {sessionId && (
-                    <p className="text-xs text-neutral-400">
-                        Order reference: {sessionId.slice(0, 20)}...
-                    </p>
+                    <div className="space-y-2">
+                        <p className="text-xs text-neutral-400">
+                            Order reference: {sessionId.slice(0, 20)}...
+                        </p>
+                        <Link
+                            href={`/order/${sessionId}`}
+                            className="inline-flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900 transition-colors underline underline-offset-2"
+                        >
+                            <Package className="w-4 h-4" />
+                            View order details
+                        </Link>
+                    </div>
                 )}
 
                 <div className="pt-4 space-y-3">

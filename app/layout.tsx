@@ -4,6 +4,7 @@ import "./globals.css";
 import { CartProvider } from "@/components/cart/CartProvider";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
 import CartDrawer from "@/components/cart/CartDrawer";
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,14 +22,53 @@ const inter = Inter({
   weight: ["400", "500"],
 });
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://contourmapstudio.com";
+
 export const metadata: Metadata = {
-  title: "Contour Map Studio",
-  description: "Create stylized contour maps and route art from your adventures.",
+  title: {
+    default: "Contour Map Studio — Turn your adventures into art",
+    template: "%s | Contour Map Studio",
+  },
+  description:
+    "Upload a GPX route and create a stunning contour map poster of your hike, run, or ride. Museum-quality prints shipped worldwide.",
+  metadataBase: new URL(appUrl),
+  openGraph: {
+    type: "website",
+    siteName: "Contour Map Studio",
+    title: "Contour Map Studio — Turn your adventures into art",
+    description:
+      "Upload a GPX route and create a stunning contour map poster of your hike, run, or ride. Museum-quality prints shipped worldwide.",
+    images: [
+      {
+        url: "/images/Peaks-Por-Da.png",
+        width: 600,
+        height: 800,
+        alt: "Example contour map poster",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Contour Map Studio — Turn your adventures into art",
+    description:
+      "Upload a GPX route and create a stunning contour map poster. Museum-quality prints shipped worldwide.",
+    images: ["/images/Peaks-Por-Da.png"],
+  },
   icons: {
     icon: "/contour-logo.png",
     shortcut: "/contour-logo.png",
     apple: "/contour-logo.png",
   },
+  keywords: [
+    "contour map",
+    "route art",
+    "GPX poster",
+    "hiking poster",
+    "cycling art",
+    "running map",
+    "topographic print",
+    "custom map poster",
+  ],
 };
 
 export default function RootLayout({
@@ -38,6 +78,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} antialiased`}
       >
@@ -45,6 +88,7 @@ export default function RootLayout({
           <CartProvider>
             {children}
             <CartDrawer />
+            <Toaster position="bottom-center" richColors closeButton />
           </CartProvider>
         </CurrencyProvider>
       </body>

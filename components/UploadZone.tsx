@@ -6,6 +6,7 @@ import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import * as toGeoJSON from '@mapbox/togeojson';
 import { Upload } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface UploadZoneProps {
     onDataLoaded: (data: any, fileName: string) => void;
@@ -34,7 +35,7 @@ export default function UploadZone({ onDataLoaded }: UploadZoneProps) {
                 }
             } catch (error) {
                 console.error("Error parsing file:", error);
-                alert("Failed to parse file. Please ensure it is a valid GPX or GeoJSON file."); // Simple alert for now
+                toast.error("Failed to parse file. Please ensure it is a valid GPX or GeoJSON file.");
             }
         };
 

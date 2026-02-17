@@ -35,9 +35,9 @@ export default function StoreModal({ imageUrl, routeName, onAddToCart, onClose }
     const variant = product.sizes[selectedSize];
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-end sm:items-center justify-center sm:p-4" onClick={onClose}>
             <div
-                className="bg-white rounded-2xl shadow-2xl max-w-md w-full relative overflow-hidden"
+                className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full relative overflow-hidden max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Close button */}
@@ -49,16 +49,16 @@ export default function StoreModal({ imageUrl, routeName, onAddToCart, onClose }
                 </button>
 
                 {/* Poster preview */}
-                <div className="bg-neutral-100 p-6 flex items-center justify-center">
+                <div className="bg-neutral-100 p-4 sm:p-6 flex items-center justify-center">
                     <img
                         src={imageUrl}
                         alt={routeName}
-                        className="max-h-48 w-auto rounded-lg shadow-lg"
+                        className="max-h-36 sm:max-h-48 w-auto rounded-lg shadow-lg"
                     />
                 </div>
 
                 {/* Content */}
-                <div className="p-6 space-y-4">
+                <div className="p-4 sm:p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 space-y-4">
                     {/* Title */}
                     <div>
                         <h2 className="text-lg font-semibold text-neutral-900">{routeName}</h2>
