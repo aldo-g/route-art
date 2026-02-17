@@ -395,6 +395,21 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         // Generate a cache key based on bbox and grid size
         const cacheKey = `terrain_${viewBbox.minLng.toFixed(4)}_${viewBbox.minLat.toFixed(4)}_${viewBbox.maxLng.toFixed(4)}_${viewBbox.maxLat.toFixed(4)}_${gridSize.w}_${gridSize.h}`;
 
+        // Check for pre-generated preset data (loaded by loadPresetRoute before navigation)
+        const presetTerrain = sessionStorage.getItem('presetData_terrain');
+        if (presetTerrain) {
+            try {
+                const parsed = JSON.parse(presetTerrain);
+                setElevationData(parsed.elevations);
+                // Populate bbox-keyed cache for subsequent renders
+                try { sessionStorage.setItem(cacheKey, JSON.stringify({ elevations: parsed.elevations })); } catch { /* quota */ }
+                sessionStorage.removeItem('presetData_terrain');
+                return;
+            } catch {
+                sessionStorage.removeItem('presetData_terrain');
+            }
+        }
+
         // Check sessionStorage for cached terrain data
         const cachedTerrain = sessionStorage.getItem(cacheKey);
         if (cachedTerrain) {
@@ -438,6 +453,21 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
         // Generate a cache key based on bbox
         const cacheKey = `landmarks_${viewBbox.minLng.toFixed(4)}_${viewBbox.minLat.toFixed(4)}_${viewBbox.maxLng.toFixed(4)}_${viewBbox.maxLat.toFixed(4)}`;
+
+        // Check for pre-generated preset landmarks
+        const presetLandmarks = sessionStorage.getItem('presetData_landmarks');
+        if (presetLandmarks) {
+            try {
+                const parsed = JSON.parse(presetLandmarks);
+                setAllLandmarks(parsed);
+                onLandmarksLoaded?.(parsed);
+                try { sessionStorage.setItem(cacheKey, JSON.stringify(parsed)); } catch { /* quota */ }
+                sessionStorage.removeItem('presetData_landmarks');
+                return;
+            } catch {
+                sessionStorage.removeItem('presetData_landmarks');
+            }
+        }
 
         // Check sessionStorage for cached landmarks
         const cachedLandmarks = sessionStorage.getItem(cacheKey);
@@ -528,6 +558,20 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
         // Generate a cache key based on bbox
         const cacheKey = `water_${viewBbox.minLng.toFixed(4)}_${viewBbox.minLat.toFixed(4)}_${viewBbox.maxLng.toFixed(4)}_${viewBbox.maxLat.toFixed(4)}`;
+
+        // Check for pre-generated preset water data
+        const presetWater = sessionStorage.getItem('presetData_water');
+        if (presetWater) {
+            try {
+                const parsed = JSON.parse(presetWater);
+                setWaterData(parsed);
+                try { sessionStorage.setItem(cacheKey, JSON.stringify(parsed)); } catch { /* quota */ }
+                sessionStorage.removeItem('presetData_water');
+                return;
+            } catch {
+                sessionStorage.removeItem('presetData_water');
+            }
+        }
 
         // Check sessionStorage for cached water data
         const cachedWater = sessionStorage.getItem(cacheKey);

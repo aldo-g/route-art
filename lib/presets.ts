@@ -74,17 +74,49 @@ export async function loadPresetRoute(presetId: string): Promise<boolean> {
     const preset = await getPresetById(presetId);
     if (!preset) return false;
 
-    // Fetch and parse GPX
-    const gpxRes = await fetch(preset.source.path);
-    if (!gpxRes.ok) return false;
+    // Clear stale preset data from previous preset loads
+    sessionStorage.removeItem('presetData_terrain');
+    sessionStorage.removeItem('presetData_water');
+    sessionStorage.removeItem('presetData_landmarks');
 
-    const gpxText = await gpxRes.text();
+    // Fetch GPX and pre-generated data in parallel
+    const [gpxRes, terrainRes, waterRes, landmarksRes] = await Promise.allSettled([
+        fetch(preset.source.path),
+        fetch(`/presets/data/${preset.id}/terrain.json`),
+        fetch(`/presets/data/${preset.id}/water.json`),
+        fetch(`/presets/data/${preset.id}/landmarks.json`),
+    ]);
+
+    // GPX is required
+    if (gpxRes.status === 'rejected' || !gpxRes.value.ok) return false;
+
+    const gpxText = await gpxRes.value.text();
     const parser = new DOMParser();
     const xml = parser.parseFromString(gpxText, 'text/xml');
     const geojson = toGeoJSON.gpx(xml);
 
     // Store GeoJSON in IndexedDB (same as UploadZone flow)
     await setRouteData('routeArtData', geojson);
+
+    // Cache pre-generated data in sessionStorage (graceful — if missing, ArtCanvas falls back to APIs)
+    if (terrainRes.status === 'fulfilled' && terrainRes.value.ok) {
+        try {
+            const data = await terrainRes.value.json();
+            sessionStorage.setItem('presetData_terrain', JSON.stringify(data));
+        } catch { /* quota exceeded or parse error — graceful degradation */ }
+    }
+    if (waterRes.status === 'fulfilled' && waterRes.value.ok) {
+        try {
+            const data = await waterRes.value.json();
+            sessionStorage.setItem('presetData_water', JSON.stringify(data));
+        } catch { /* graceful degradation */ }
+    }
+    if (landmarksRes.status === 'fulfilled' && landmarksRes.value.ok) {
+        try {
+            const data = await landmarksRes.value.json();
+            sessionStorage.setItem('presetData_landmarks', JSON.stringify(data));
+        } catch { /* graceful degradation */ }
+    }
 
     // Store file name
     sessionStorage.setItem('routeArtFileName', `${preset.name}.gpx`);

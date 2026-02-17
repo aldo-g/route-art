@@ -440,6 +440,9 @@ export default function ViewPage() {
         sessionStorage.removeItem('routeArtShowShading');
         sessionStorage.removeItem('routeArtShadingIntensity');
         sessionStorage.removeItem('routeArtArtMode');
+        sessionStorage.removeItem('presetData_terrain');
+        sessionStorage.removeItem('presetData_water');
+        sessionStorage.removeItem('presetData_landmarks');
         router.push('/');
     };
 
