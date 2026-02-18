@@ -30,14 +30,14 @@ export const metadata: Metadata = {
     template: "%s | Contour Map Studio",
   },
   description:
-    "Upload a GPX route and create a stunning contour map poster of your hike, run, or ride. Museum-quality prints shipped worldwide.",
+    "Upload a GPX route and create a stunning personalised contour map poster of your hike, run, or ride. Prints shipped worldwide.",
   metadataBase: new URL(appUrl),
   openGraph: {
     type: "website",
     siteName: "Contour Map Studio",
     title: "Contour Map Studio — Turn your adventures into art",
     description:
-      "Upload a GPX route and create a stunning contour map poster of your hike, run, or ride. Museum-quality prints shipped worldwide.",
+      "Upload a GPX route and create a stunning personalised contour map poster of your hike, run, or ride. Prints shipped worldwide.",
     images: [
       {
         url: "/images/Peaks-Por-Da.png",
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Contour Map Studio — Turn your adventures into art",
     description:
-      "Upload a GPX route and create a stunning contour map poster. Museum-quality prints shipped worldwide.",
+      "Upload a GPX route and create a stunning personalised contour map poster. Prints shipped worldwide.",
     images: ["/images/Peaks-Por-Da.png"],
   },
   icons: {

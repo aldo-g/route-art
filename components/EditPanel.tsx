@@ -1270,7 +1270,7 @@ export default function EditPanel({
                             className="w-full flex items-center justify-center gap-2 py-3 bg-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-neutral-800 transition-colors shadow-sm"
                         >
                             <Printer className="w-4 h-4" />
-                            Buy Museum-Quality Print
+                            Buy Personalised Print
                         </button>
                         <p className="text-[10px] text-neutral-400 text-center">Printed on archival matte paper</p>
                     </div>

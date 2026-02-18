@@ -17,7 +17,7 @@ export interface ProductConfig {
 export const PRODUCTS: Record<ProductType, ProductConfig> = {
   poster: {
     label: "Matte Poster",
-    description: "Museum-quality archival matte paper (200gsm), giclée printed.",
+    description: "Personalised archival matte paper (200gsm), giclée printed.",
     printfulProductId: 268, // Enhanced Matte Paper Poster (cm)
     sizes: {
       A4: { price: 1500, dimensions: "210 × 297 mm", printfulVariantId: "8947" },   // 21×30 cm
