@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Pbf from 'pbf';
 import { VectorTile } from '@mapbox/vector-tile';
+import { tileCache } from '@/lib/tile-cache';
 
 const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN;
 
@@ -76,15 +77,19 @@ export async function POST(request: NextRequest) {
         // Fetch all tiles needed to cover the bbox
         for (let ty = minTile.y; ty <= maxTile.y; ty++) {
             for (let tx = minTile.x; tx <= maxTile.x; tx++) {
-                const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/${zoom}/${tx}/${ty}.vector.pbf?access_token=${MAPBOX_TOKEN}`;
+                const cacheKey = `streets-v8/${zoom}/${tx}/${ty}`;
+                let arrayBuffer = tileCache.get(cacheKey);
 
-                const response = await fetch(url);
-                if (!response.ok) {
-                    console.error(`Failed to fetch water tile ${zoom}/${tx}/${ty}: ${response.status}`);
-                    continue;
+                if (!arrayBuffer) {
+                    const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/${zoom}/${tx}/${ty}.vector.pbf?access_token=${MAPBOX_TOKEN}`;
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        console.error(`Failed to fetch water tile ${zoom}/${tx}/${ty}: ${response.status}`);
+                        continue;
+                    }
+                    arrayBuffer = await response.arrayBuffer();
+                    tileCache.set(cacheKey, arrayBuffer);
                 }
-
-                const arrayBuffer = await response.arrayBuffer();
                 const pbf = new Pbf(new Uint8Array(arrayBuffer));
                 const tile = new VectorTile(pbf);
 
@@ -126,6 +131,9 @@ export async function POST(request: NextRequest) {
                 }
             }
         }
+
+        const stats = tileCache.getStats();
+        console.log(`[Water] Features: ${waterFeatures.length} | Mapbox API: hits=${stats.hits} misses=${stats.misses} rate=${stats.hitRate} | Cached: ${stats.cached}`);
 
         return NextResponse.json({
             type: 'FeatureCollection',

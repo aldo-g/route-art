@@ -76,6 +76,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
     const [elevationError, setElevationError] = useState<string | null>(null);
     const [gridSize] = useState({ w: 800, h: 800 });
     const [viewBbox, setViewBbox] = useState<{ minLng: number; minLat: number; maxLng: number; maxLat: number } | null>(null);
+    const [terrainBbox, setTerrainBbox] = useState<{ minLng: number; minLat: number; maxLng: number; maxLat: number } | null>(null);
+    const fetchedBboxRef = useRef<{ terrain: string | null; water: string | null; landmarks: string | null }>({ terrain: null, water: null, landmarks: null });
     const [allLandmarks, setAllLandmarks] = useState<Landmark[]>([]);
     const [countryCode, setCountryCode] = useState<string | null>(null);
     const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
@@ -117,6 +119,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             setProcessed(result);
             setElevationData(null);
             setElevationError(null);
+            setTerrainBbox(null);
+            fetchedBboxRef.current = { terrain: null, water: null, landmarks: null };
         }
     }, [geoJson]);
 
@@ -395,12 +399,17 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         // Generate a cache key based on bbox and grid size
         const cacheKey = `terrain_${viewBbox.minLng.toFixed(4)}_${viewBbox.minLat.toFixed(4)}_${viewBbox.maxLng.toFixed(4)}_${viewBbox.maxLat.toFixed(4)}_${gridSize.w}_${gridSize.h}`;
 
+        // Skip if we already have elevation data and it was fetched for this route
+        if (elevationData && fetchedBboxRef.current.terrain) return;
+
         // Check for pre-generated preset data (loaded by loadPresetRoute before navigation)
         const presetTerrain = sessionStorage.getItem('presetData_terrain');
         if (presetTerrain) {
             try {
                 const parsed = JSON.parse(presetTerrain);
                 setElevationData(parsed.elevations);
+                setTerrainBbox(viewBbox);
+                fetchedBboxRef.current.terrain = cacheKey;
                 // Populate bbox-keyed cache for subsequent renders
                 try { sessionStorage.setItem(cacheKey, JSON.stringify({ elevations: parsed.elevations })); } catch { /* quota */ }
                 sessionStorage.removeItem('presetData_terrain');
@@ -416,6 +425,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             try {
                 const parsed = JSON.parse(cachedTerrain);
                 setElevationData(parsed.elevations);
+                setTerrainBbox(viewBbox);
+                fetchedBboxRef.current.terrain = cacheKey;
                 return;
             } catch {
                 console.error("Failed to parse cached terrain data");
@@ -428,6 +439,8 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             try {
                 const result = await fetchMapboxTerrain(viewBbox, gridSize.w, gridSize.h);
                 setElevationData(result.elevations);
+                setTerrainBbox(viewBbox);
+                fetchedBboxRef.current.terrain = cacheKey;
                 // Cache the result
                 try {
                     sessionStorage.setItem(cacheKey, JSON.stringify({ elevations: result.elevations }));
@@ -451,6 +464,9 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
     useEffect(() => {
         if (!viewBbox || !processed) return;
 
+        // Skip if we already have landmarks fetched for this route
+        if (allLandmarks.length > 0 && fetchedBboxRef.current.landmarks) return;
+
         // Generate a cache key based on bbox
         const cacheKey = `landmarks_${viewBbox.minLng.toFixed(4)}_${viewBbox.minLat.toFixed(4)}_${viewBbox.maxLng.toFixed(4)}_${viewBbox.maxLat.toFixed(4)}`;
 
@@ -461,6 +477,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 const parsed = JSON.parse(presetLandmarks);
                 setAllLandmarks(parsed);
                 onLandmarksLoaded?.(parsed);
+                fetchedBboxRef.current.landmarks = cacheKey;
                 try { sessionStorage.setItem(cacheKey, JSON.stringify(parsed)); } catch { /* quota */ }
                 sessionStorage.removeItem('presetData_landmarks');
                 return;
@@ -476,6 +493,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 const parsed = JSON.parse(cachedLandmarks);
                 setAllLandmarks(parsed);
                 onLandmarksLoaded?.(parsed);
+                fetchedBboxRef.current.landmarks = cacheKey;
                 return;
             } catch {
                 console.error("Failed to parse cached landmarks");
@@ -494,6 +512,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 });
                 setAllLandmarks(result);
                 onLandmarksLoaded?.(result);
+                fetchedBboxRef.current.landmarks = cacheKey;
                 // Cache the result
                 try {
                     sessionStorage.setItem(cacheKey, JSON.stringify(result));
@@ -556,6 +575,9 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             return;
         }
 
+        // Skip if we already have water data fetched for this route
+        if (waterData && fetchedBboxRef.current.water) return;
+
         // Generate a cache key based on bbox
         const cacheKey = `water_${viewBbox.minLng.toFixed(4)}_${viewBbox.minLat.toFixed(4)}_${viewBbox.maxLng.toFixed(4)}_${viewBbox.maxLat.toFixed(4)}`;
 
@@ -565,6 +587,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             try {
                 const parsed = JSON.parse(presetWater);
                 setWaterData(parsed);
+                fetchedBboxRef.current.water = cacheKey;
                 try { sessionStorage.setItem(cacheKey, JSON.stringify(parsed)); } catch { /* quota */ }
                 sessionStorage.removeItem('presetData_water');
                 return;
@@ -579,6 +602,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             try {
                 const parsed = JSON.parse(cachedWater);
                 setWaterData(parsed);
+                fetchedBboxRef.current.water = cacheKey;
                 return;
             } catch {
                 console.error("Failed to parse cached water data");
@@ -598,6 +622,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 }
                 const data = await response.json();
                 setWaterData(data);
+                fetchedBboxRef.current.water = cacheKey;
                 // Cache the result
                 try {
                     sessionStorage.setItem(cacheKey, JSON.stringify(data));
@@ -932,10 +957,11 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("rx", 2)
             .attr("ry", 2);
 
-        // Add Hillshade layer if available
-        if (hillshadeImage && showShading) {
-            const topLeft = projection([viewBbox?.minLng || 0, viewBbox?.maxLat || 0]);
-            const bottomRight = projection([viewBbox?.maxLng || 0, viewBbox?.minLat || 0]);
+        // Add Hillshade layer if available - use terrainBbox (the bbox the elevation data was fetched for)
+        const renderBbox = terrainBbox || viewBbox;
+        if (hillshadeImage && showShading && renderBbox) {
+            const topLeft = projection([renderBbox.minLng, renderBbox.maxLat]);
+            const bottomRight = projection([renderBbox.maxLng, renderBbox.minLat]);
 
             if (topLeft && bottomRight) {
                 const imgW = bottomRight[0] - topLeft[0];
@@ -994,10 +1020,11 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         }
         const elevRange = maxElev - minElev;
 
-        // Calculate approximate geographic size in km
-        const bboxWidthDeg = viewBbox ? (viewBbox.maxLng - viewBbox.minLng) : 0.5;
-        const bboxHeightDeg = viewBbox ? (viewBbox.maxLat - viewBbox.minLat) : 0.5;
-        const avgLat = viewBbox ? (viewBbox.maxLat + viewBbox.minLat) / 2 : 45;
+        // Calculate approximate geographic size in km (use terrainBbox to match fetched data)
+        const contourBbox = terrainBbox || viewBbox;
+        const bboxWidthDeg = contourBbox ? (contourBbox.maxLng - contourBbox.minLng) : 0.5;
+        const bboxHeightDeg = contourBbox ? (contourBbox.maxLat - contourBbox.minLat) : 0.5;
+        const avgLat = contourBbox ? (contourBbox.maxLat + contourBbox.minLat) / 2 : 45;
         const kmPerDegLat = 111; // roughly constant
         const kmPerDegLng = 111 * Math.cos(avgLat * Math.PI / 180);
         const bboxWidthKm = bboxWidthDeg * kmPerDegLng;
@@ -1059,12 +1086,13 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
             .attr("class", "contours")
             .attr("clip-path", `url(#${clipId})`);
 
-        // Mapping function for grid coordinates to projection
+        // Mapping function for grid coordinates to projection (use terrainBbox to match fetched data)
+        const gridBbox = terrainBbox || viewBbox;
         const gridToProjection = d3.geoTransform({
             point: function (x, y) {
-                if (!viewBbox) return;
-                const lng = viewBbox.minLng + (x / (usedGridSize[0] - 1)) * (viewBbox.maxLng - viewBbox.minLng);
-                const lat = viewBbox.maxLat - (y / (usedGridSize[1] - 1)) * (viewBbox.maxLat - viewBbox.minLat);
+                if (!gridBbox) return;
+                const lng = gridBbox.minLng + (x / (usedGridSize[0] - 1)) * (gridBbox.maxLng - gridBbox.minLng);
+                const lat = gridBbox.maxLat - (y / (usedGridSize[1] - 1)) * (gridBbox.maxLat - gridBbox.minLat);
                 const p = projection([lng, lat]);
                 if (p) this.stream.point(p[0], p[1]);
             }
@@ -1637,7 +1665,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 .attr("preserveAspectRatio", "xMidYMid meet");
         }
 
-    }, [processed, geoJson, elevationData, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize, isDarkMode, showWater, waterData, showMarkers, contourIntensity, labelSideOverrides]);
+    }, [processed, geoJson, elevationData, terrainBbox, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize, isDarkMode, showWater, waterData, showMarkers, contourIntensity, labelSideOverrides]);
 
     return (
         <div ref={containerRef} className={`w-full h-full relative ${isDarkMode ? 'bg-[#0a0a0a]' : 'bg-white'}`}>

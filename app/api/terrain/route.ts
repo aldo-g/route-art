@@ -1,5 +1,6 @@
 // app/api/terrain/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { tileCache } from '@/lib/tile-cache';
 
 const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN;
 
@@ -73,15 +74,20 @@ export async function POST(request: NextRequest) {
 
         for (let ty = minTile.y; ty <= maxTile.y; ty++) {
             for (let tx = minTile.x; tx <= maxTile.x; tx++) {
-                const url = `https://api.mapbox.com/v4/mapbox.terrain-rgb/${zoom}/${tx}/${ty}@2x.pngraw?access_token=${MAPBOX_TOKEN}`;
+                const cacheKey = `terrain-rgb/${zoom}/${tx}/${ty}`;
+                let arrayBuffer = tileCache.get(cacheKey);
 
-                const response = await fetch(url);
-                if (!response.ok) {
-                    console.error(`Failed to fetch tile ${zoom}/${tx}/${ty}: ${response.status}`);
-                    continue;
+                if (!arrayBuffer) {
+                    const url = `https://api.mapbox.com/v4/mapbox.terrain-rgb/${zoom}/${tx}/${ty}@2x.pngraw?access_token=${MAPBOX_TOKEN}`;
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        console.error(`Failed to fetch tile ${zoom}/${tx}/${ty}: ${response.status}`);
+                        continue;
+                    }
+                    arrayBuffer = await response.arrayBuffer();
+                    tileCache.set(cacheKey, arrayBuffer);
                 }
 
-                const arrayBuffer = await response.arrayBuffer();
                 const { PNG } = await import('pngjs');
                 const png = PNG.sync.read(Buffer.from(arrayBuffer));
 
@@ -93,6 +99,9 @@ export async function POST(request: NextRequest) {
                 });
             }
         }
+
+        const stats = tileCache.getStats();
+        console.log(`[Terrain] Tiles: ${tiles.length} | Mapbox API: hits=${stats.hits} misses=${stats.misses} rate=${stats.hitRate} | Cached: ${stats.cached}`);
 
         if (tiles.length === 0) {
             return NextResponse.json({ error: 'Failed to fetch terrain tiles' }, { status: 500 });
