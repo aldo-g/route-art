@@ -1266,11 +1266,12 @@ export default function EditPanel({
                     <div className="space-y-1.5">
                         <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Print</p>
                         <button
-                            onClick={onBuyPrint}
-                            className="w-full flex items-center justify-center gap-2 py-3 bg-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-neutral-800 transition-colors shadow-sm"
+                            disabled
+                            className="w-full flex items-center justify-center gap-2 py-3 bg-neutral-200 text-neutral-400 text-sm font-semibold rounded-xl cursor-not-allowed shadow-sm"
                         >
                             <Printer className="w-4 h-4" />
                             Buy Personalised Print
+                            <span className="ml-1 text-[10px] font-bold uppercase tracking-wider bg-neutral-400 text-white px-1.5 py-0.5 rounded-md">Coming Soon</span>
                         </button>
                         <p className="text-[10px] text-neutral-400 text-center">Printed on archival matte paper</p>
                     </div>
