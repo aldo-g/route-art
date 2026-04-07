@@ -30,7 +30,7 @@ export default function Header({ showBackButton = false, onBack, onCtaClick }: H
               <div className="h-4 w-px bg-neutral-200" />
             </>
           )}
-          <h1 className="text-lg font-bold tracking-tight bg-white/80 backdrop-blur-sm px-3 py-1 rounded">Contour Maps Studio</h1>
+          <span className="text-lg font-bold tracking-tight bg-white/80 backdrop-blur-sm px-3 py-1 rounded">Contour Maps Studio</span>
         </div>
         <div className="flex items-center gap-3">
           <button
