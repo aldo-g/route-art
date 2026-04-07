@@ -47,7 +47,7 @@ export default function Header({ showBackButton = false, onBack, onCtaClick }: H
           {onCtaClick && (
             <button
               onClick={onCtaClick}
-              className="hidden sm:block px-5 py-2 bg-neutral-900 text-white rounded-lg text-sm font-medium hover:bg-neutral-800 transition-colors"
+              className="hidden sm:block px-5 py-2.5 min-h-[44px] bg-neutral-900 text-white rounded-lg text-sm font-medium hover:bg-neutral-800 transition-colors"
             >
               Create poster
             </button>
