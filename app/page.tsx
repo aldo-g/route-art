@@ -139,6 +139,7 @@ export default function Home() {
                     src={preset.preview.thumbnail}
                     alt={preset.name}
                     fill
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 280px"
                     className="object-cover"
                     loading="lazy"
                   />
