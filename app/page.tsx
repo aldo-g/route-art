@@ -151,7 +151,7 @@ export default function Home() {
                   {/* Hover overlay */}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
                     <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity tracking-wide">
-                      Customise in editor
+                      Customize in editor
                     </span>
                   </div>
                 </div>
