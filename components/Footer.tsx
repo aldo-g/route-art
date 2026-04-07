@@ -11,9 +11,9 @@ export default function Footer() {
           &copy; {new Date().getFullYear()} Contour Map Studio
         </p>
         <nav className="flex gap-4">
-          <Link href="/privacy" className="text-xs text-neutral-400 hover:text-neutral-600">Privacy</Link>
-          <Link href="/terms" className="text-xs text-neutral-400 hover:text-neutral-600">Terms</Link>
-          <Link href="/returns" className="text-xs text-neutral-400 hover:text-neutral-600">Returns</Link>
+          <Link href="/privacy" className="text-xs text-neutral-400 hover:text-neutral-600 min-h-[44px] inline-flex items-center">Privacy</Link>
+          <Link href="/terms" className="text-xs text-neutral-400 hover:text-neutral-600 min-h-[44px] inline-flex items-center">Terms</Link>
+          <Link href="/returns" className="text-xs text-neutral-400 hover:text-neutral-600 min-h-[44px] inline-flex items-center">Returns</Link>
         </nav>
       </div>
     </footer>

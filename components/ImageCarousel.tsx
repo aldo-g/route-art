@@ -63,14 +63,14 @@ export default function ImageCarousel() {
         {/* Navigation arrows */}
         <button
           onClick={() => handleManualNav(goToPrev)}
-          className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/90 hover:bg-white shadow-md transition-colors z-10"
+          className="absolute left-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-white/90 hover:bg-white shadow-md transition-colors z-10 min-w-[44px] min-h-[44px] flex items-center justify-center"
           aria-label="Previous image"
         >
           <ChevronLeft className="w-5 h-5 text-neutral-700" />
         </button>
         <button
           onClick={() => handleManualNav(goToNext)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/90 hover:bg-white shadow-md transition-colors z-10"
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-white/90 hover:bg-white shadow-md transition-colors z-10 min-w-[44px] min-h-[44px] flex items-center justify-center"
           aria-label="Next image"
         >
           <ChevronRight className="w-5 h-5 text-neutral-700" />
@@ -78,16 +78,18 @@ export default function ImageCarousel() {
       </div>
 
       {/* Dots indicator */}
-      <div className="flex justify-center gap-2 mt-3">
+      <div className="flex justify-center gap-1 mt-3">
         {images.map((_, index) => (
           <button
             key={index}
             onClick={() => handleManualNav(() => setCurrentIndex(index))}
-            className={`w-2 h-2 rounded-full transition-colors ${
-              index === currentIndex ? 'bg-neutral-700' : 'bg-neutral-300'
-            }`}
+            className={`min-w-[44px] min-h-[44px] flex items-center justify-center`}
             aria-label={`Go to image ${index + 1}`}
-          />
+          >
+            <span className={`w-2 h-2 rounded-full transition-colors block ${
+              index === currentIndex ? 'bg-neutral-700' : 'bg-neutral-300'
+            }`} />
+          </button>
         ))}
       </div>
     </div>

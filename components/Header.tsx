@@ -35,7 +35,7 @@ export default function Header({ showBackButton = false, onBack, onCtaClick }: H
         <div className="flex items-center gap-3">
           <button
             onClick={() => setCartOpen(true)}
-            className="relative p-2 text-neutral-500 hover:text-neutral-800 transition-colors bg-white/80 backdrop-blur-sm rounded-lg"
+            className="relative p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-neutral-500 hover:text-neutral-800 transition-colors bg-white/80 backdrop-blur-sm rounded-lg"
           >
             <ShoppingCart className="w-5 h-5" />
             {count > 0 && (
