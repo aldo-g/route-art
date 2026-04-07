@@ -51,14 +51,37 @@ export async function POST(request: NextRequest) {
                     out body;
                 `;
 
-                const response = await fetch('https://overpass-api.de/api/interpreter', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `data=${encodeURIComponent(query)}`
-                });
+                const OVERPASS_ENDPOINTS = [
+                    'https://overpass-api.de/api/interpreter',
+                    'https://overpass.kumi.systems/api/interpreter',
+                    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+                ];
 
-                if (!response.ok) {
-                    throw new Error(`Overpass API error: ${response.status}`);
+                let response: Response | null = null;
+                let lastError: string = '';
+                for (const endpoint of OVERPASS_ENDPOINTS) {
+                    try {
+                        const controller = new AbortController();
+                        const timeout = setTimeout(() => controller.abort(), 30000);
+                        const res = await fetch(endpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: `data=${encodeURIComponent(query)}`,
+                            signal: controller.signal,
+                        });
+                        clearTimeout(timeout);
+                        if (res.ok) {
+                            response = res;
+                            break;
+                        }
+                        lastError = `${res.status}`;
+                    } catch (e) {
+                        lastError = e instanceof Error ? e.message : String(e);
+                    }
+                }
+
+                if (!response) {
+                    throw new Error(`Overpass API error: ${lastError}`);
                 }
 
                 const data = await response.json();
