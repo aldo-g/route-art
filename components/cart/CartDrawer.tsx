@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { X, Trash2, ShoppingBag, Minus, Plus, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCart } from './CartProvider';
@@ -31,9 +32,9 @@ function CartItemRow({
 
     return (
         <div className="flex gap-3 py-3">
-            <div className="w-16 h-20 bg-neutral-100 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
+            <div className="relative w-16 h-20 bg-neutral-100 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
                 {imageUrl ? (
-                    <img src={imageUrl} alt={item.routeName} className="w-full h-full object-cover" />
+                    <Image src={imageUrl} alt={item.routeName} fill unoptimized sizes="64px" className="object-cover" />
                 ) : (
                     <div className="w-full h-full bg-neutral-200 animate-pulse" />
                 )}
@@ -78,7 +79,8 @@ export default function CartDrawer() {
     // Fetch shipping estimate when cart opens with items
     useEffect(() => {
         if (!isCartOpen || items.length === 0) return;
-        setShippingEstimate(null);
+
+        let cancelled = false;
 
         const cartItems = items.map(item => ({
             productType: item.productType || 'poster',
@@ -93,15 +95,22 @@ export default function CartDrawer() {
         })
             .then(res => res.json())
             .then(data => {
+                if (cancelled) return;
                 const standard = data.rates?.find((r: { id: string }) => r.id === 'STANDARD');
                 if (standard) {
                     // Printful returns rate in AUD — convert to EUR cents then to user currency
                     const audRate = 1.65; // AUD per EUR
                     const eurCents = Math.round((parseFloat(standard.rate) / audRate) * 100);
                     setShippingEstimate(formatPrice(eurCents));
+                } else {
+                    setShippingEstimate(null);
                 }
             })
             .catch(() => {});
+
+        return () => {
+            cancelled = true;
+        };
     }, [isCartOpen, items, countryCode, formatPrice]);
 
     const handleCheckout = async () => {

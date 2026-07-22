@@ -65,14 +65,7 @@ export default function StravaConnect({ onDataLoaded }: StravaConnectProps) {
         return () => window.removeEventListener('message', handleMessage);
     }, []);
 
-    // Fetch activities when tokens are available and modal opens
-    useEffect(() => {
-        if (tokens && showModal && activities.length === 0) {
-            fetchActivities();
-        }
-    }, [tokens, showModal]);
-
-    const fetchActivities = async () => {
+    const fetchActivities = useCallback(async () => {
         if (!tokens) return;
 
         setLoadingActivities(true);
@@ -100,7 +93,14 @@ export default function StravaConnect({ onDataLoaded }: StravaConnectProps) {
         } finally {
             setLoadingActivities(false);
         }
-    };
+    }, [tokens]);
+
+    // Fetch activities when tokens are available and modal opens
+    useEffect(() => {
+        if (tokens && showModal && activities.length === 0) {
+            fetchActivities();
+        }
+    }, [tokens, showModal, activities.length, fetchActivities]);
 
     const handleConnect = () => {
         setLoading(true);

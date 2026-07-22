@@ -5,6 +5,7 @@
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import * as d3 from 'd3';
 import { processRoute, ProcessedRoute } from '@/lib/geo';
+import type { FeatureCollection, Feature, LineString, MultiLineString } from 'geojson';
 import { generateTerrain, fetchMapboxTerrain } from '@/lib/terrain';
 import { fetchLandmarks, Landmark } from '@/lib/landmarks';
 import jsPDF from 'jspdf';
@@ -34,7 +35,7 @@ export interface ImageOverride {
 }
 
 interface ArtCanvasProps {
-    geoJson: any; // Raw GeoJSON from parser
+    geoJson: FeatureCollection | Feature<LineString | MultiLineString>;
     fileName?: string;
     selectedLandmarkIds?: Set<number>;
     customLandmarks?: Landmark[];
@@ -458,6 +459,10 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
 
         fetchRealTerrain();
 
+        // elevationData/onLoadingStatusChange are intentionally excluded: fetchedBboxRef
+        // already guards against re-fetching, and re-running on every callback identity
+        // change or elevationData update would defeat that guard.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [viewBbox, gridSize]);
 
     // Fetch landmarks separately when we have both viewBbox and processed route
@@ -527,6 +532,9 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         };
 
         fetchLandmarkData();
+        // allLandmarks.length/onLoadingStatusChange are intentionally excluded: fetchedBboxRef
+        // already guards against re-fetching for the same bbox.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [viewBbox, processed, onLandmarksLoaded]);
 
     // Fetch country from route center coordinates
@@ -635,6 +643,9 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         };
 
         fetchWaterData();
+        // waterData is intentionally excluded: fetchedBboxRef already guards against
+        // re-fetching for the same bbox, and it's only read here as an early-exit check.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [viewBbox, showWater]);
 
     useImperativeHandle(ref, () => ({
@@ -1665,7 +1676,7 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
                 .attr("preserveAspectRatio", "xMidYMid meet");
         }
 
-    }, [processed, geoJson, elevationData, terrainBbox, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize, isDarkMode, showWater, waterData, showMarkers, contourIntensity, labelSideOverrides]);
+    }, [processed, geoJson, elevationData, terrainBbox, gridSize, landmarks, fileName, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, selectedLandmarkIds, countryCode, statsOverrides, onDefaultsCalculated, imageOverride, containerSize, isDarkMode, showWater, waterData, showMarkers, contourIntensity, labelSideOverrides, hillshadeImage, routeHighlight, routeHighlightIntensity, shadingIntensity, showShading, viewBbox]);
 
     return (
         <div ref={containerRef} className={`w-full h-full relative ${isDarkMode ? 'bg-[#0a0a0a]' : 'bg-white'}`}>

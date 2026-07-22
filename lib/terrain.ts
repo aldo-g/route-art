@@ -88,12 +88,14 @@ export const fetchElevationGrid = async (coords: { lat: number; lng: number }[])
 
             const data = await response.json() as { results: { elevation: number | null }[] };
             return data.results.map(r => r.elevation ?? 0);
-        } catch (error: any) {
-            if (error.name === 'AbortError') {
-                throw new Error("Topography request timed out.");
-            }
-            if (error.message === 'Failed to fetch') {
-                throw new Error("Connection failed. Topography service unreachable.");
+        } catch (error) {
+            if (error instanceof Error) {
+                if (error.name === 'AbortError') {
+                    throw new Error("Topography request timed out.");
+                }
+                if (error.message === 'Failed to fetch') {
+                    throw new Error("Connection failed. Topography service unreachable.");
+                }
             }
             throw error;
         }

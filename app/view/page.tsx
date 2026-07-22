@@ -14,10 +14,11 @@ import { getRouteData } from '@/lib/storage';
 import StoreModal from '@/components/store/StoreModal';
 import { useCart } from '@/components/cart/CartProvider';
 import { PrintSize, ProductType } from '@/config/products';
+import type { FeatureCollection, Feature, LineString, MultiLineString } from 'geojson';
 
 export default function ViewPage() {
     const router = useRouter();
-    const [geoJson, setGeoJson] = useState<any>(null);
+    const [geoJson, setGeoJson] = useState<FeatureCollection | Feature<LineString | MultiLineString> | null>(null);
     const [fileName, setFileName] = useState<string>('');
     const canvasRef = useRef<ArtCanvasHandle>(null);
 
@@ -69,7 +70,7 @@ export default function ViewPage() {
             }
 
             try {
-                const storedData = await getRouteData('routeArtData');
+                const storedData = await getRouteData<FeatureCollection | Feature<LineString | MultiLineString>>('routeArtData');
                 if (!storedData) {
                     router.push('/');
                     return;

@@ -1,5 +1,6 @@
 
 declare module '@mapbox/togeojson' {
-    export function gpx(doc: Document): any;
-    export function kml(doc: Document): any;
+    import type { GeoJSON } from 'geojson';
+    export function gpx(doc: Document): GeoJSON;
+    export function kml(doc: Document): GeoJSON;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { X, Check, ShoppingCart, Minus, Plus } from 'lucide-react';
 import { PRODUCTS, ProductType, PrintSize } from '@/config/products';
 import { useCurrency } from '@/components/CurrencyProvider';
@@ -50,9 +51,12 @@ export default function StoreModal({ imageUrl, routeName, onAddToCart, onClose }
 
                 {/* Poster preview */}
                 <div className="bg-neutral-100 p-4 sm:p-6 flex items-center justify-center">
-                    <img
+                    <Image
                         src={imageUrl}
                         alt={routeName}
+                        width={400}
+                        height={533}
+                        unoptimized
                         className="max-h-36 sm:max-h-48 w-auto rounded-lg shadow-lg"
                     />
                 </div>

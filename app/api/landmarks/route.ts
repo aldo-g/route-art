@@ -1,5 +1,5 @@
 // app/api/landmarks/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import * as turf from '@turf/turf';
 import { Feature, LineString, MultiLineString } from 'geojson';
 
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     const stream = new ReadableStream({
         async start(controller) {
-            const send = (data: any) => {
+            const send = (data: Record<string, unknown>) => {
                 controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'));
             };
 
@@ -88,10 +88,17 @@ export async function POST(request: NextRequest) {
                 const totalElements = data.elements?.length || 0;
                 send({ status: `Processing ${totalElements} landmarks...` });
 
-                let landmarks: Landmark[] = data.elements
-                    .map((el: any) => ({
+                interface OverpassElement {
+                    id: number;
+                    lat: number;
+                    lon: number;
+                    tags: { natural?: string; waterway?: string; name?: string; ele?: string };
+                }
+
+                let landmarks: Landmark[] = (data.elements as OverpassElement[])
+                    .map((el) => ({
                         id: el.id,
-                        type: el.tags.natural || (el.tags.waterway === 'waterfall' ? 'waterfall' : 'peak'),
+                        type: (el.tags.natural || (el.tags.waterway === 'waterfall' ? 'waterfall' : 'peak')) as Landmark['type'],
                         name: el.tags.name || null,
                         lat: el.lat,
                         lng: el.lon,

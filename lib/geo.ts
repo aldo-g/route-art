@@ -42,11 +42,6 @@ export const processRoute = (geoJson: FeatureCollection | Feature<LineString | M
     const center = turf.center(feature).geometry.coordinates as [number, number];
     const bbox = turf.bbox(feature) as [number, number, number, number];
 
-    // Get all coordinates (flattened for stats calculation)
-    const allCoords: Position[] = feature.geometry.type === 'MultiLineString'
-        ? feature.geometry.coordinates.flat()
-        : feature.geometry.coordinates;
-
     // Calculate elevation stats from coordinates (GPX stores elevation as 3rd coordinate)
     let elevationGain = 0;
     let elevationLoss = 0;

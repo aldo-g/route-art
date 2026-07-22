@@ -38,7 +38,6 @@ export const fetchLandmarks = async (
         throw new Error('Failed to start stream reader');
     }
 
-    const decoder = new TextEncoder();
     const textDecoder = new TextDecoder();
     let buffer = '';
     let finalLandmarks: Landmark[] = [];

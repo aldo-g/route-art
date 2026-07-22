@@ -110,9 +110,6 @@ export async function POST(request: NextRequest) {
                 // Convert AUD → EUR cents, then EUR cents → target currency
                 const eurCents = Math.round((rateAud / audRate) * 100);
                 const targetAmount = convertPrice(eurCents, currency);
-                const deliveryEstimate = rate.minDeliveryDays === rate.maxDeliveryDays
-                    ? `${rate.minDeliveryDays} business days`
-                    : `${rate.minDeliveryDays}–${rate.maxDeliveryDays} business days`;
 
                 return {
                     shipping_rate_data: {

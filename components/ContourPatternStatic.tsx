@@ -6,7 +6,7 @@ import { createNoise2D } from 'simplex-noise';
 
 function generateTerrain(width: number, height: number, seed: number) {
     const noise2D = createNoise2D(() => {
-        let s = Math.sin(seed) * 10000;
+        const s = Math.sin(seed) * 10000;
         return s - Math.floor(s);
     });
 

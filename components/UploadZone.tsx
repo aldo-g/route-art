@@ -9,7 +9,7 @@ import { Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface UploadZoneProps {
-    onDataLoaded: (data: any, fileName: string) => void;
+    onDataLoaded: (data: unknown, fileName: string) => void;
 }
 
 export default function UploadZone({ onDataLoaded }: UploadZoneProps) {

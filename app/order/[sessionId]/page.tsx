@@ -1,9 +1,10 @@
 import { getSupabase } from '@/lib/supabase';
 import { notFound } from 'next/navigation';
-import { PRODUCTS, ProductType, PrintSize } from '@/config/products';
+import { PRODUCTS, ProductType } from '@/config/products';
 import { CURRENCIES, CurrencyConfig, formatPriceWithCurrency } from '@/config/currency';
 import { Package, MapPin, CheckCircle, Clock, Printer, Truck, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface OrderRow {
     id: string;
@@ -53,9 +54,6 @@ export default async function OrderPage({
 
     const supabase = getSupabase();
 
-    // Try join first; fall back to separate queries if FK isn't set up
-    let orders: OrderRow[];
-
     // Try fetching orders — use select('*') to avoid column-not-found errors
     const { data: plainOrders } = await supabase
         .from('orders')
@@ -74,7 +72,7 @@ export default async function OrderPage({
 
     const posterMap = new Map((posters || []).map(p => [p.id, p]));
 
-    orders = plainOrders.map(o => ({
+    const orders: OrderRow[] = plainOrders.map(o => ({
         ...o,
         quantity: o.quantity || 1,
         currency: o.currency || 'eur',
@@ -156,9 +154,9 @@ export default async function OrderPage({
 
                             return (
                                 <div key={order.id} className="flex gap-4 p-5">
-                                    <div className="w-16 h-20 bg-neutral-100 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                    <div className="relative w-16 h-20 bg-neutral-100 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
                                         {imageUrl ? (
-                                            <img src={imageUrl} alt={routeName} className="w-full h-full object-cover" />
+                                            <Image src={imageUrl} alt={routeName} fill sizes="64px" className="object-cover" />
                                         ) : (
                                             <Package className="w-6 h-6 text-neutral-300" />
                                         )}

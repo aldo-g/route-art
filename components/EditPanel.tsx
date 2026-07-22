@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { ChevronUp, Mountain, Droplets, Triangle, Upload, Trash2, Plus, Star, Download, Heart, X, Settings, ArrowRight, Printer, ArrowLeftRight } from 'lucide-react';
 import { Landmark } from '@/lib/landmarks';
 
@@ -405,7 +406,7 @@ export default function EditPanel({
     labelSideOverrides,
     onToggleLabelSide,
     onExportPNG,
-    onBuyPrint,
+    onBuyPrint: _onBuyPrint,
 }: EditPanelProps) {
     // Tour state
     const [showTour, setShowTour] = useState(false);
@@ -1231,7 +1232,7 @@ export default function EditPanel({
                                 <div className="pl-0 pt-1">
                                     {imageOverride.url ? (
                                         <div className="flex items-center gap-2 p-2 bg-neutral-50 rounded-lg border border-neutral-100">
-                                            <img src={imageOverride.url} alt="Custom" className="h-8 w-auto rounded" />
+                                            <Image src={imageOverride.url} alt="Custom" width={32} height={32} unoptimized className="h-8 w-auto rounded" />
                                             <span className="text-xs text-neutral-500 flex-1">Custom image</span>
                                             <button onClick={handleRemoveCustomImage} className="p-1 text-neutral-400 hover:text-red-500">
                                                 <Trash2 className="w-3 h-3" />
@@ -1239,7 +1240,7 @@ export default function EditPanel({
                                         </div>
                                     ) : defaultFlagUrl ? (
                                         <div className="flex items-center gap-2 p-2 bg-neutral-50 rounded-lg border border-neutral-100">
-                                            <img src={defaultFlagUrl} alt="Flag" className="h-8 w-auto rounded" />
+                                            <Image src={defaultFlagUrl} alt="Flag" width={32} height={32} className="h-8 w-auto rounded" />
                                             <span className="text-xs text-neutral-500">{countryCode} flag (auto-detected)</span>
                                         </div>
                                     ) : null}

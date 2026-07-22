@@ -270,10 +270,17 @@ async function fetchLandmarks(bbox: Bbox, route: Feature<LineString | MultiLineS
 
     if (!response.ok) throw new Error(`Overpass API error: ${response.status}`);
 
-    const data = await response.json();
+    interface OverpassElement {
+        id: number;
+        lat: number;
+        lon: number;
+        tags: { natural?: string; waterway?: string; name?: string; ele?: string };
+    }
+
+    const data = await response.json() as { elements?: OverpassElement[] };
 
     let landmarks: Landmark[] = (data.elements || [])
-        .map((el: any) => ({
+        .map((el) => ({
             id: el.id,
             type: el.tags.natural || (el.tags.waterway === 'waterfall' ? 'waterfall' : 'peak'),
             name: el.tags.name || null,
