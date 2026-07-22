@@ -1,7 +1,15 @@
 // app/api/strava/auth/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function GET(request: NextRequest) {
+    const rateLimitResponse = await checkRateLimit(request, {
+        name: 'strava-auth',
+        requests: 10,
+        window: '1 m',
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
     const error = searchParams.get('error');

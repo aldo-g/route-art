@@ -1,5 +1,6 @@
 // app/api/strava/activities/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function GET(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
@@ -12,6 +13,14 @@ export async function GET(request: NextRequest) {
     }
 
     const accessToken = authHeader.slice(7);
+
+    const rateLimitResponse = await checkRateLimit(request, {
+        name: 'strava-activities',
+        requests: 30,
+        window: '1 m',
+        identifier: () => accessToken,
+    });
+    if (rateLimitResponse) return rateLimitResponse;
     const { searchParams } = new URL(request.url);
     const page = searchParams.get('page') || '1';
     const perPage = searchParams.get('per_page') || '30';

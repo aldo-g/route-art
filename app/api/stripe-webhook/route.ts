@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { getSupabase } from '@/lib/supabase';
 import { createPrintfulOrder, PrintfulRecipient } from '@/lib/printful';
 import { PRODUCTS, ProductType, PrintSize } from '@/config/products';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 function getStripe() {
     return new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -11,6 +12,13 @@ function getStripe() {
 }
 
 export async function POST(request: NextRequest) {
+    const rateLimitResponse = await checkRateLimit(request, {
+        name: 'stripe-webhook',
+        requests: 60,
+        window: '1 m',
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
     const stripe = getStripe();
     const body = await request.text();
     const signature = request.headers.get('stripe-signature');

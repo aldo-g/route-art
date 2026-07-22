@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 /**
  * Printful Webhook Handler
@@ -28,6 +29,13 @@ const STATUS_MAP: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
+    const rateLimitResponse = await checkRateLimit(request, {
+        name: 'printful-webhook',
+        requests: 60,
+        window: '1 m',
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
     // Verify the webhook comes from Printful by checking the secret header
     const webhookSecret = process.env.PRINTFUL_WEBHOOK_SECRET;
     if (webhookSecret) {

@@ -28,8 +28,12 @@ STRAVA_CLIENT_ID=xxxx
 STRAVA_CLIENT_SECRET=xxxx
 NEXT_PUBLIC_STRAVA_CLIENT_ID=xxxx
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+UPSTASH_REDIS_REST_URL=xxxx
+UPSTASH_REDIS_REST_TOKEN=xxxx
 ```
 Update `NEXT_PUBLIC_APP_URL` to your deployed URL (e.g., `https://yourdomain.com`) before production.
+
+`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` power rate limiting on checkout, the Stripe/Printful webhooks, and the Strava proxy endpoints. Create a free database at [console.upstash.com](https://console.upstash.com) and copy its REST URL/token. If unset, rate limiting fails open (disabled) with a console warning — safe for local dev, but **required before unlocking purchasing in production**.
 
 ### Strava OAuth Redirects
 Add both of these to your Strava app settings:

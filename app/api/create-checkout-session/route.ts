@@ -5,6 +5,7 @@ import { CURRENCIES, CurrencyConfig, convertPrice } from '@/config/currency';
 import { getShippingRates, ShippingItem } from '@/lib/printful';
 import { savePoster } from '@/lib/savePoster';
 import { getSupabase } from '@/lib/supabase';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 function getStripe() {
     return new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -23,6 +24,13 @@ interface CheckoutItem {
 }
 
 export async function POST(request: NextRequest) {
+    const rateLimitResponse = await checkRateLimit(request, {
+        name: 'create-checkout-session',
+        requests: 10,
+        window: '1 m',
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
     try {
         const stripe = getStripe();
         const body = await request.json();

@@ -1,5 +1,6 @@
 // app/api/strava/activity/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function GET(
     request: NextRequest,
@@ -16,6 +17,14 @@ export async function GET(
     }
 
     const accessToken = authHeader.slice(7);
+
+    const rateLimitResponse = await checkRateLimit(request, {
+        name: 'strava-activity',
+        requests: 30,
+        window: '1 m',
+        identifier: () => accessToken,
+    });
+    if (rateLimitResponse) return rateLimitResponse;
 
     try {
         const response = await fetch(
