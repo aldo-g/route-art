@@ -55,17 +55,23 @@ export default function UploadZone({ onDataLoaded }: UploadZoneProps) {
         <div
             {...getRootProps()}
             className={`
-        border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-        ${isDragActive ? 'border-neutral-800 bg-neutral-50' : 'border-neutral-200 hover:border-neutral-400'}
+        h-full border-2 bg-paper p-8 sm:p-10 cursor-pointer transition-colors
+        flex flex-col items-start gap-4
+        ${isDragActive ? 'border-accent' : 'border-ink hover:border-accent'}
       `}
         >
             <input {...getInputProps()} />
-            <div className="flex flex-col items-center gap-4 text-neutral-500">
-                <Upload className="w-8 h-8 opacity-50" />
-                <div className="space-y-1">
-                    <p className="font-medium text-neutral-800">Drop your GPX activity here</p>
-                    <p className="text-sm opacity-60">or click to browse</p>
-                </div>
+            <Upload className="w-7 h-7 text-ink" />
+            <div>
+                <p className="text-[20px] font-semibold text-ink">Drop your GPX activity here</p>
+                <p className="mt-1.5 text-[14px] text-muted">Or click to browse. GPX, JSON and GeoJSON accepted.</p>
+            </div>
+            <div
+                className={`mt-1 w-full border-2 border-dashed p-7 text-[13px] tracking-[0.08em] uppercase transition-colors ${
+                    isDragActive ? 'border-accent text-accent' : 'border-divider text-faint'
+                }`}
+            >
+                Drag a file into this area
             </div>
         </div>
     );

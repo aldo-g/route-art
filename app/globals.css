@@ -1,23 +1,61 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f3f2f2;
+  --foreground: #201e1d;
+
+  /* Modernist design system — hard rules, zero radius, one hot accent. */
+  --color-ink: #201e1d;
+  --color-paper: #ffffff;
+  --color-muted: #55504e;
+  --color-faint: #7a7472;
+  --color-accent: #ec3013;
+  --color-accent-700: #ae1800;
+  --color-divider: color-mix(in srgb, #201e1d 40%, transparent);
+  --color-strava: #fc4c02;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-ink: var(--color-ink);
+  --color-paper: var(--color-paper);
+  --color-muted: var(--color-muted);
+  --color-faint: var(--color-faint);
+  --color-accent: var(--color-accent);
+  --color-accent-700: var(--color-accent-700);
+  --color-divider: var(--color-divider);
+  --color-strava: var(--color-strava);
+  --font-sans: var(--font-archivo);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
 }
 
 h1, h2, h3, h4, h5, h6 {
   text-wrap: balance;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* Hide the browser's native search clear button — the input renders its own,
+   and both together read as two X's stacked in the field. */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Uppercase micro-label — the system's recurring metadata voice. */
+.label-meta {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-muted);
 }

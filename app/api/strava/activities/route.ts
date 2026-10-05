@@ -22,8 +22,10 @@ export async function GET(request: NextRequest) {
     });
     if (rateLimitResponse) return rateLimitResponse;
     const { searchParams } = new URL(request.url);
-    const page = searchParams.get('page') || '1';
-    const perPage = searchParams.get('per_page') || '30';
+    // Strava rejects per_page above 200 and non-positive pages; clamp rather than
+    // forwarding whatever the client sent.
+    const page = Math.max(1, Number(searchParams.get('page')) || 1);
+    const perPage = Math.min(200, Math.max(1, Number(searchParams.get('per_page')) || 30));
 
     try {
         const response = await fetch(

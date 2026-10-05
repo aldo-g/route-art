@@ -6,11 +6,24 @@ export interface StravaTokens {
     access_token: string;
     refresh_token: string;
     expires_at: number;
+    /** Scopes Strava actually granted. Absent on tokens issued before we tracked it. */
+    scope?: string;
     athlete: {
         id: number;
         firstname: string;
         lastname: string;
     };
+}
+
+/**
+ * Whether a token can see private / followers-only activities.
+ * Strava puts private activities behind activity:read_all, and its consent screen
+ * has a separate checkbox for it — so a user can grant only activity:read even
+ * when we request read_all. Tokens issued before we recorded scope have none,
+ * and those predate the read_all request, so treat them as public-only.
+ */
+export function hasPrivateActivityAccess(tokens: StravaTokens): boolean {
+    return tokens.scope?.split(',').includes('activity:read_all') ?? false;
 }
 
 export interface StravaActivity {
@@ -47,7 +60,79 @@ export interface StravaActivityDetail extends StravaActivity {
     splits_metric?: StravaSplit[]; // Lap/km splits with elevation data
 }
 
-// Calculate total elevation loss from splits_metric array
+export interface StravaAltitudeStream {
+    altitude?: { data: number[] };
+}
+
+/**
+ * Elevation gain and loss from the per-point altitude stream.
+ *
+ * Raw GPS/barometric altitude jitters by a metre or so between points, so summing
+ * every change inflates both totals. We only count a move once it has travelled
+ * more than THRESHOLD from the last confirmed turning point, which is the standard
+ * hysteresis approach and matches Strava's own figures closely.
+ */
+const ELEVATION_THRESHOLD_M = 3;
+
+export function calculateElevationFromStream(
+    altitudes: number[] | undefined
+): { gain: number; loss: number } | null {
+    if (!altitudes || altitudes.length < 2) return null;
+
+    let gain = 0;
+    let loss = 0;
+    // Last confirmed turning point, and which way we are currently moving.
+    let pivot = altitudes[0];
+    let direction: 'up' | 'down' | null = null;
+
+    for (let i = 1; i < altitudes.length; i++) {
+        const current = altitudes[i];
+        if (!Number.isFinite(current)) continue;
+        const delta = current - pivot;
+
+        if (direction === 'up') {
+            if (delta > 0) {
+                // Still climbing: extend this run.
+                gain += delta;
+                pivot = current;
+            } else if (-delta > ELEVATION_THRESHOLD_M) {
+                // Turned over into a real descent.
+                loss += -delta;
+                pivot = current;
+                direction = 'down';
+            }
+        } else if (direction === 'down') {
+            if (delta < 0) {
+                loss += -delta;
+                pivot = current;
+            } else if (delta > ELEVATION_THRESHOLD_M) {
+                gain += delta;
+                pivot = current;
+                direction = 'up';
+            }
+        } else if (Math.abs(delta) > ELEVATION_THRESHOLD_M) {
+            // First move large enough to establish a direction.
+            if (delta > 0) {
+                gain += delta;
+                direction = 'up';
+            } else {
+                loss += -delta;
+                direction = 'down';
+            }
+            pivot = current;
+        }
+    }
+
+    return { gain: Math.round(gain), loss: Math.round(loss) };
+}
+
+/**
+ * Fallback elevation loss from splits_metric.
+ *
+ * Each split covers a whole kilometre and reports only its NET elevation change,
+ * so climbs and descents within one split cancel out. This under-reports loss on
+ * rolling terrain — prefer calculateElevationFromStream when the stream is available.
+ */
 export function calculateElevationLoss(splits: StravaSplit[] | undefined): number {
     if (!splits || splits.length === 0) return 0;
     return splits.reduce((total, split) => {
@@ -179,7 +264,9 @@ export function formatDate(isoDate: string): string {
 export function getStravaAuthUrl(): string {
     const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID;
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/api/strava/auth`;
-    const scope = 'read,activity:read';
+    // activity:read_all is required to see private and followers-only activities;
+    // plain activity:read returns public ones only.
+    const scope = 'read,activity:read_all';
 
     return `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}`;
 }
