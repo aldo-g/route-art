@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
+import { BUSINESS, formatBusinessAddress } from '@/config/business';
 
 export const metadata: Metadata = {
     title: 'Returns & Refunds',
@@ -12,7 +13,7 @@ export default function ReturnsPage() {
                 <Link href="/" className="text-xs text-neutral-400 no-underline hover:text-neutral-600">&larr; Back to home</Link>
 
                 <h1>Returns &amp; Refunds Policy</h1>
-                <p className="text-neutral-500">Last updated: February 2026</p>
+                <p className="text-neutral-500">Last updated: October 2026</p>
 
                 <h2>1. Custom products</h2>
                 <p>
@@ -56,7 +57,8 @@ export default function ReturnsPage() {
                 <h2>6. Contact</h2>
                 <p>
                     For any returns or refund enquiries, email us at{' '}
-                    <a href="mailto:hello@contourmapstudio.com">hello@contourmapstudio.com</a>.
+                    <a href={`mailto:${BUSINESS.email}`}>{BUSINESS.email}</a> or write to {BUSINESS.legalName},{' '}
+                    {formatBusinessAddress()}.
                 </p>
             </article>
         </main>

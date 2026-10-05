@@ -4,6 +4,7 @@ import { getSupabase } from '@/lib/supabase';
 import { createPrintfulOrder, PrintfulRecipient } from '@/lib/printful';
 import { PRODUCTS, ProductType, PrintSize } from '@/config/products';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { getOrderTotals } from '@/lib/order-totals';
 
 function getStripe() {
     return new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
                 customer_email: session.customer_details?.email || null,
                 shipping_name: shipping?.name || null,
                 shipping_address: shipping?.address || null,
+                ...getOrderTotals(session),
             })
             .eq('stripe_session_id', session.id);
 
@@ -128,10 +130,7 @@ export async function POST(request: NextRequest) {
                 zip: addr?.postal_code || '',
             };
 
-            // Create Printful order. With PRINTFUL_AUTO_CONFIRM on (the default)
-            // this also confirms it for fulfillment; if confirmation fails the
-            // order stays a draft and the daily sweep (/api/cron/printful-drafts)
-            // retries it.
+            // Create Printful order (as draft — review before confirming)
             const result = await createPrintfulOrder({
                 externalId: session.id,
                 recipient,
@@ -139,20 +138,15 @@ export async function POST(request: NextRequest) {
             });
 
             if (result) {
-                const printfulStatus = result.status === 'draft' ? 'draft' : 'submitted';
                 await supabase
                     .from('orders')
                     .update({
                         printful_order_id: String(result.printfulOrderId),
-                        printful_status: printfulStatus,
+                        printful_status: 'submitted',
                     })
                     .eq('stripe_session_id', session.id);
 
-                if (printfulStatus === 'draft') {
-                    console.warn(`Printful order ${result.printfulOrderId} for session ${session.id} is still a DRAFT (not confirmed)`);
-                } else {
-                    console.log(`Printful order ${result.printfulOrderId} confirmed for session ${session.id} (status: ${result.status})`);
-                }
+                console.log(`Printful order ${result.printfulOrderId} created for session ${session.id}`);
             } else {
                 await supabase
                     .from('orders')

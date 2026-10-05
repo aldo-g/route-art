@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/printful-drafts",
-      "schedule": "0 7 * * *"
-    }
-  ]
-}

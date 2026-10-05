@@ -2,6 +2,7 @@ import { getSupabase } from '@/lib/supabase';
 import { notFound } from 'next/navigation';
 import { PRODUCTS, ProductType } from '@/config/products';
 import { CURRENCIES, CurrencyConfig, formatPriceWithCurrency } from '@/config/currency';
+import { getTaxBehavior } from '@/config/tax';
 import { Package, MapPin, CheckCircle, Clock, Printer, Truck, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -21,6 +22,10 @@ interface OrderRow {
     shipping_address: Record<string, string> | null;
     printful_order_id: string | null;
     printful_status: string | null;
+    amount_subtotal: number | null;
+    amount_tax: number | null;
+    amount_shipping: number | null;
+    amount_total: number | null;
     created_at: string;
     posters: {
         id: string;
@@ -85,7 +90,12 @@ export default async function OrderPage({
     const orderDate = new Date(orders[0].created_at);
     const shippingName = orders[0].shipping_name;
     const shippingAddress = formatAddress(orders[0].shipping_address);
-    const total = orders.reduce((sum, o) => sum + o.price * o.quantity, 0);
+    const itemsTotal = orders.reduce((sum, o) => sum + o.price * o.quantity, 0);
+    // Totals recorded from Stripe once paid; fall back to the item sum for pending orders.
+    const amountShipping = orders[0].amount_shipping ?? null;
+    const amountTax = orders[0].amount_tax ?? null;
+    const total = orders[0].amount_total ?? itemsTotal;
+    const taxInclusive = getTaxBehavior(currency.code) === 'inclusive';
     const printfulStatus = orders[0].printful_status as string | null;
 
     return (
@@ -111,7 +121,7 @@ export default async function OrderPage({
                                 Pending
                             </span>
                         )}
-                        {(printfulStatus === 'submitted' || printfulStatus === 'draft') && (
+                        {printfulStatus === 'submitted' && (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
                                 <Printer className="w-3.5 h-3.5" />
                                 Sent to printer
@@ -177,12 +187,32 @@ export default async function OrderPage({
                             );
                         })}
                     </div>
-                    {/* Total */}
-                    <div className="flex items-center justify-between px-5 py-4 border-t border-neutral-200 bg-neutral-50">
-                        <span className="text-sm font-medium text-neutral-500">Total</span>
-                        <span className="text-lg font-semibold text-neutral-900">
-                            {formatPriceWithCurrency(total, currency)}
-                        </span>
+                    {/* Totals */}
+                    <div className="px-5 py-4 border-t border-neutral-200 bg-neutral-50 space-y-1.5">
+                        {amountShipping !== null && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-neutral-500">Shipping</span>
+                                <span className="text-sm text-neutral-700">
+                                    {formatPriceWithCurrency(amountShipping, currency)}
+                                </span>
+                            </div>
+                        )}
+                        {amountTax !== null && amountTax > 0 && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-neutral-500">
+                                    {taxInclusive ? 'Includes VAT' : 'Sales tax'}
+                                </span>
+                                <span className="text-sm text-neutral-700">
+                                    {formatPriceWithCurrency(amountTax, currency)}
+                                </span>
+                            </div>
+                        )}
+                        <div className="flex items-center justify-between pt-1">
+                            <span className="text-sm font-medium text-neutral-500">Total</span>
+                            <span className="text-lg font-semibold text-neutral-900">
+                                {formatPriceWithCurrency(total, currency)}
+                            </span>
+                        </div>
                     </div>
                 </div>
 

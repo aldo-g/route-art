@@ -91,33 +91,14 @@ export interface PrintfulOrderResult {
 }
 
 /**
- * Whether orders should be confirmed (submitted for fulfillment) automatically.
- *
- * Default: ON. A paid Stripe order that sits as a Printful draft is never
- * printed, so we confirm as soon as the order is created. Set
- * PRINTFUL_AUTO_CONFIRM=false to create drafts only (e.g. local dev with a
- * live Printful key, or when you deliberately want to review every order by
- * hand in the Printful dashboard).
- */
-export function isAutoConfirmEnabled(): boolean {
-    const raw = process.env.PRINTFUL_AUTO_CONFIRM;
-    if (raw === undefined || raw === '') return true;
-    return !['false', '0', 'no', 'off'].includes(raw.trim().toLowerCase());
-}
-
-/**
- * Create an order in Printful.
- *
- * The order is created as a draft and then — when auto-confirm is enabled —
- * confirmed in a second call. Two calls (rather than POST /orders?confirm=1)
- * so that if confirmation fails (billing issue, Printful outage) we still have
- * a draft we can retry from the daily sweep instead of losing the order.
+ * Create a draft order in Printful.
+ * Orders are NOT auto-confirmed — review in Printful dashboard before confirming.
+ * Set `confirm: true` in the body when ready for auto-fulfillment.
  */
 export async function createPrintfulOrder(params: {
     externalId: string;
     recipient: PrintfulRecipient;
     items: PrintfulOrderItem[];
-    confirm?: boolean;
 }): Promise<PrintfulOrderResult | null> {
     const body = {
         external_id: params.externalId,
@@ -134,7 +115,6 @@ export async function createPrintfulOrder(params: {
         })),
     };
 
-    let created: PrintfulOrderResult;
     try {
         const res = await fetch(`${PRINTFUL_API}/orders`, {
             method: 'POST',
@@ -149,7 +129,7 @@ export async function createPrintfulOrder(params: {
             return null;
         }
 
-        created = {
+        return {
             printfulOrderId: data.result.id,
             status: data.result.status,
         };
@@ -157,96 +137,4 @@ export async function createPrintfulOrder(params: {
         console.error('Printful create order failed:', err);
         return null;
     }
-
-    const shouldConfirm = params.confirm ?? isAutoConfirmEnabled();
-    if (!shouldConfirm || created.status !== 'draft') {
-        return created;
-    }
-
-    const confirmed = await confirmPrintfulOrder(created.printfulOrderId);
-    // If confirmation failed we still return the draft so the caller can
-    // record the Printful order ID; the daily sweep will retry confirmation.
-    return confirmed ?? created;
-}
-
-/**
- * Confirm (submit for fulfillment) an existing Printful order.
- * Moves the order from `draft` to `pending`. Returns null on failure.
- */
-export async function confirmPrintfulOrder(
-    printfulOrderId: number | string
-): Promise<PrintfulOrderResult | null> {
-    try {
-        const res = await fetch(`${PRINTFUL_API}/orders/${printfulOrderId}/confirm`, {
-            method: 'POST',
-            headers: getHeaders(),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-            console.error(`Printful confirm order ${printfulOrderId} error:`, data);
-            return null;
-        }
-
-        return {
-            printfulOrderId: data.result.id,
-            status: data.result.status,
-        };
-    } catch (err) {
-        console.error(`Printful confirm order ${printfulOrderId} failed:`, err);
-        return null;
-    }
-}
-
-export interface PrintfulDraftOrder {
-    id: number;
-    externalId: string | null;
-    status: string;
-    created: number; // unix seconds
-}
-
-/**
- * List every order currently sitting in `draft` in the Printful store.
- * Used by the daily sweep to catch orders that were never confirmed.
- */
-export async function listPrintfulDraftOrders(): Promise<PrintfulDraftOrder[] | null> {
-    const drafts: PrintfulDraftOrder[] = [];
-    const limit = 100;
-    let offset = 0;
-
-    try {
-        // Printful caps `limit` at 100; page until we've seen `paging.total`.
-        for (;;) {
-            const res = await fetch(
-                `${PRINTFUL_API}/orders?status=draft&limit=${limit}&offset=${offset}`,
-                { headers: getHeaders() }
-            );
-            const data = await res.json();
-
-            if (!res.ok) {
-                console.error('Printful list draft orders error:', data);
-                return null;
-            }
-
-            const page = (data.result || []) as Record<string, unknown>[];
-            for (const o of page) {
-                drafts.push({
-                    id: o.id as number,
-                    externalId: (o.external_id as string | null) ?? null,
-                    status: o.status as string,
-                    created: o.created as number,
-                });
-            }
-
-            const total = (data.paging?.total as number | undefined) ?? page.length;
-            offset += page.length;
-            if (page.length === 0 || offset >= total) break;
-        }
-    } catch (err) {
-        console.error('Printful list draft orders failed:', err);
-        return null;
-    }
-
-    return drafts;
 }
