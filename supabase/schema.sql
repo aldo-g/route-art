@@ -27,7 +27,13 @@ CREATE TABLE IF NOT EXISTS orders (
     shipping_name text,
     shipping_address jsonb,           -- { line1, line2, city, state, postal_code, country }
     printful_order_id text,           -- Printful order ID after submission
-    printful_status text              -- draft | submitted | failed | in_production | shipped | ...
+    printful_status text,             -- draft | submitted | failed | in_production | shipped | ...
+    -- Session-level totals from Stripe Checkout (smallest currency unit), copied onto
+    -- every row of the session. Tax is calculated by Stripe Tax at checkout.
+    amount_subtotal integer,
+    amount_tax integer,
+    amount_shipping integer,
+    amount_total integer
 );
 
 -- Index for looking up orders by Stripe session
@@ -44,3 +50,7 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS currency text DEFAULT 'eur';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS product_type text DEFAULT 'poster';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS printful_order_id text;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS printful_status text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS amount_subtotal integer;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS amount_tax integer;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS amount_shipping integer;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS amount_total integer;
