@@ -8,6 +8,16 @@ export interface CartItem {
     size: PrintSize;
     quantity: number;
     addedAt: number;
+    /** Poster row id in Supabase; the print file is already uploaded under it. */
+    posterId: string;
+    /** Public URL of the full-resolution print file. */
+    imageUrl: string;
+    /** Public URL of the small preview. */
+    previewUrl: string;
+    /** Pixel size and effective DPI of the uploaded print file. */
+    printWidth: number;
+    printHeight: number;
+    printDpi: number;
 }
 
 const DB_NAME = 'cartDB';
@@ -40,6 +50,9 @@ export async function getCartItems(): Promise<CartItem[]> {
         request.onsuccess = () => {
             db.close();
             const items = (request.result as CartItem[])
+                // Items added before print files were uploaded at add-to-cart time have no
+                // poster id and cannot be ordered, so drop them rather than break checkout.
+                .filter(item => typeof item.posterId === 'string' && item.posterId.length > 0)
                 .map(item => ({ ...item, quantity: item.quantity || 1, productType: item.productType || 'poster' as ProductType }))
                 .sort((a, b) => a.addedAt - b.addedAt);
             resolve(items);
@@ -87,28 +100,6 @@ export async function getCartImage(id: string): Promise<string | null> {
         const request = tx.objectStore(IMAGES_STORE).get(id);
         request.onsuccess = () => { db.close(); resolve(request.result ?? null); };
         request.onerror = () => { db.close(); reject(request.error); };
-    });
-}
-
-export async function getAllCartImages(): Promise<Record<string, string>> {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(IMAGES_STORE, 'readonly');
-        const store = tx.objectStore(IMAGES_STORE);
-        const result: Record<string, string> = {};
-
-        const cursorReq = store.openCursor();
-        cursorReq.onsuccess = () => {
-            const cursor = cursorReq.result;
-            if (cursor) {
-                result[cursor.key as string] = cursor.value;
-                cursor.continue();
-            } else {
-                db.close();
-                resolve(result);
-            }
-        };
-        cursorReq.onerror = () => { db.close(); reject(cursorReq.error); };
     });
 }
 

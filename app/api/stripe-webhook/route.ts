@@ -4,6 +4,7 @@ import { getSupabase } from '@/lib/supabase';
 import { createPrintfulOrder, PrintfulRecipient } from '@/lib/printful';
 import { PRODUCTS, ProductType, PrintSize } from '@/config/products';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { getOrderTotals } from '@/lib/order-totals';
 
 function getStripe() {
     return new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
                 customer_email: session.customer_details?.email || null,
                 shipping_name: shipping?.name || null,
                 shipping_address: shipping?.address || null,
+                ...getOrderTotals(session),
             })
             .eq('stripe_session_id', session.id);
 

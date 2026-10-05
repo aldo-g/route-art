@@ -1,22 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { X, Check, ShoppingCart, Minus, Plus } from 'lucide-react';
-import { PRODUCTS, ProductType, PrintSize } from '@/config/products';
+import { X, Check, ShoppingCart, Minus, Plus, Loader2 } from 'lucide-react';
+import { PRODUCTS, ProductType, PrintSize, getPrintAspect } from '@/config/products';
 import { useCurrency } from '@/components/CurrencyProvider';
 
 interface StoreModalProps {
-    imageUrl: string;
+    /** Preview captured at the selected variant's print ratio; null while it is being re-captured. */
+    imageUrl: string | null;
+    /** False while the canvas is re-rendering for the selected size; blocks Add to cart. */
+    isReady: boolean;
+    isPortrait: boolean;
     routeName: string;
     routeId: string;
+    /** Fired on open and whenever product/size changes, so the parent can re-lay out the artwork. */
+    onSelectionChange: (productType: ProductType, size: PrintSize) => void;
     onClose: () => void;
-    onAddToCart: (productType: ProductType, size: PrintSize, quantity: number) => void;
+    onAddToCart: (productType: ProductType, size: PrintSize, quantity: number) => Promise<void>;
+    /** Progress text while the print file is rendered and uploaded; null when idle. */
+    addStatus: string | null;
 }
 
 const productTypes: ProductType[] = ['poster', 'framed', 'canvas'];
 
-export default function StoreModal({ imageUrl, routeName, onAddToCart, onClose }: StoreModalProps) {
+export default function StoreModal({ imageUrl, isReady, isPortrait, routeName, onSelectionChange, onAddToCart, onClose, addStatus }: StoreModalProps) {
     const { formatPrice } = useCurrency();
     const [selectedType, setSelectedType] = useState<ProductType>('poster');
     const product = PRODUCTS[selectedType];
@@ -34,9 +42,18 @@ export default function StoreModal({ imageUrl, routeName, onAddToCart, onClose }
     };
 
     const variant = product.sizes[selectedSize];
+    const isAdding = addStatus !== null;
+
+    useEffect(() => {
+        onSelectionChange(selectedType, selectedSize);
+    }, [selectedType, selectedSize, onSelectionChange]);
+
+    // Placeholder with the print's proportions, shown while the preview re-renders for a new size
+    const aspect = getPrintAspect(selectedType, selectedSize);
+    const previewAspect = isPortrait ? `1 / ${aspect}` : `${aspect} / 1`;
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-end sm:items-center justify-center sm:p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-end sm:items-center justify-center sm:p-4" onClick={isAdding ? undefined : onClose}>
             <div
                 className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full relative overflow-hidden max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
@@ -44,21 +61,33 @@ export default function StoreModal({ imageUrl, routeName, onAddToCart, onClose }
                 {/* Close button */}
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 p-1.5 text-neutral-400 hover:text-neutral-600 transition-colors z-10 bg-white/80 rounded-full"
+                    disabled={isAdding}
+                    className="absolute top-4 right-4 p-1.5 text-neutral-400 hover:text-neutral-600 transition-colors z-10 bg-white/80 rounded-full disabled:opacity-40"
                 >
                     <X className="w-4 h-4" />
                 </button>
 
-                {/* Poster preview */}
-                <div className="bg-neutral-100 p-4 sm:p-6 flex items-center justify-center">
-                    <Image
-                        src={imageUrl}
-                        alt={routeName}
-                        width={400}
-                        height={533}
-                        unoptimized
-                        className="max-h-36 sm:max-h-48 w-auto rounded-lg shadow-lg"
-                    />
+                {/* Poster preview, laid out at the selected variant's print ratio */}
+                <div className="bg-neutral-100 p-4 sm:p-6 flex flex-col items-center justify-center gap-2">
+                    {imageUrl ? (
+                        <Image
+                            src={imageUrl}
+                            alt={routeName}
+                            width={400}
+                            height={Math.round(400 * (isPortrait ? aspect : 1 / aspect))}
+                            unoptimized
+                            className="max-h-36 sm:max-h-48 w-auto rounded-lg shadow-lg"
+                        />
+                    ) : (
+                        <div
+                            className="h-36 sm:h-48 bg-neutral-200 animate-pulse rounded-lg"
+                            style={{ aspectRatio: previewAspect }}
+                            aria-label="Preparing preview"
+                        />
+                    )}
+                    {variant && (
+                        <p className="text-[10px] text-neutral-400">Shown at the {variant.dimensions} print ratio</p>
+                    )}
                 </div>
 
                 {/* Content */}
@@ -114,7 +143,7 @@ export default function StoreModal({ imageUrl, routeName, onAddToCart, onClose }
                                                 <Check className="w-2.5 h-2.5 text-white" />
                                             </div>
                                         )}
-                                        <span className="text-sm font-semibold text-neutral-900">{size}</span>
+                                        <span className="text-sm font-semibold text-neutral-900">{v.label}</span>
                                         <span className="text-[10px] text-neutral-400 mt-0.5">{v.dimensions}</span>
                                         <span className="text-xs font-medium text-neutral-600 mt-1">{formatPrice(v.price)}</span>
                                     </button>
@@ -152,11 +181,17 @@ export default function StoreModal({ imageUrl, routeName, onAddToCart, onClose }
                     {/* CTA */}
                     <button
                         onClick={() => onAddToCart(selectedType, selectedSize, quantity)}
-                        className="w-full py-3.5 bg-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-neutral-800 transition-colors shadow-sm flex items-center justify-center gap-2"
+                        disabled={isAdding || !isReady}
+                        className="w-full py-3.5 bg-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-neutral-800 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-wait"
                     >
-                        <ShoppingCart className="w-4 h-4" />
-                        Add to cart
+                        {isAdding || !isReady ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+                        {isAdding ? addStatus : isReady ? 'Add to cart' : 'Preparing preview…'}
                     </button>
+                    {isAdding && (
+                        <p className="text-[11px] text-neutral-400 text-center -mt-2">
+                            Preparing a print-resolution file. This can take a moment on large sizes.
+                        </p>
+                    )}
                 </div>
             </div>
         </div>

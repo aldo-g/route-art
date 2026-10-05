@@ -7,7 +7,9 @@ import { toast } from 'sonner';
 import { useCart } from './CartProvider';
 import { PRODUCTS, getVariant } from '@/config/products';
 import { useCurrency } from '@/components/CurrencyProvider';
-import { CartItem, getCartImage, getAllCartImages } from '@/lib/cart';
+import { CartItem, getCartImage } from '@/lib/cart';
+import { ShippingQuote, shippingQuoteToEurCents } from '@/config/shipping';
+import { getTaxNote } from '@/config/tax';
 
 function CartItemRow({
     item,
@@ -41,7 +43,7 @@ function CartItemRow({
             </div>
             <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-neutral-900 truncate">{item.routeName}</p>
-                <p className="text-xs text-neutral-500 mt-0.5">{product.label} &mdash; {item.size} ({variant?.dimensions})</p>
+                <p className="text-xs text-neutral-500 mt-0.5">{product.label} &mdash; {variant?.dimensions ?? item.size}</p>
                 <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center gap-1.5">
                         <button
@@ -96,15 +98,11 @@ export default function CartDrawer() {
             .then(res => res.json())
             .then(data => {
                 if (cancelled) return;
-                const standard = data.rates?.find((r: { id: string }) => r.id === 'STANDARD');
-                if (standard) {
-                    // Printful returns rate in AUD — convert to EUR cents then to user currency
-                    const audRate = 1.65; // AUD per EUR
-                    const eurCents = Math.round((parseFloat(standard.rate) / audRate) * 100);
-                    setShippingEstimate(formatPrice(eurCents));
-                } else {
-                    setShippingEstimate(null);
-                }
+                const standard: (ShippingQuote & { id: string }) | undefined =
+                    data.rates?.find((r: { id: string }) => r.id === 'STANDARD');
+                // Quote arrives in whatever currency Printful reports; never assume AUD/EUR here
+                const eurCents = standard ? shippingQuoteToEurCents(standard) : null;
+                setShippingEstimate(eurCents === null ? null : formatPrice(eurCents));
             })
             .catch(() => {});
 
@@ -118,15 +116,13 @@ export default function CartDrawer() {
         setLoading(true);
 
         try {
-            const images = await getAllCartImages();
-
+            // Print files were uploaded to storage when the item was added, so checkout
+            // only needs the poster ids.
             const checkoutItems = items.map(item => ({
-                routeId: item.routeId,
-                routeName: item.routeName,
+                posterId: item.posterId,
                 productType: item.productType || 'poster',
                 size: item.size,
                 quantity: item.quantity,
-                imageBase64: images[item.id] || '',
             }));
 
             const res = await fetch('/api/create-checkout-session', {
@@ -220,6 +216,7 @@ export default function CartDrawer() {
                                     {shippingEstimate ? `~${shippingEstimate}` : 'Calculated at checkout'}
                                 </span>
                             </div>
+                            <p className="text-xs text-neutral-400">{getTaxNote(currency.code)}</p>
                         </div>
                         <button
                             onClick={handleCheckout}

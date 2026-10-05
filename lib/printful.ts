@@ -1,3 +1,5 @@
+import { PRINTFUL_QUOTE_CURRENCY } from '@/config/shipping';
+
 const PRINTFUL_API = 'https://api.printful.com';
 
 function getHeaders() {
@@ -16,14 +18,17 @@ export interface ShippingRateResult {
     id: string;
     name: string;          // e.g. "STANDARD", "EXPRESS"
     rate: string;           // price as string e.g. "4.99"
-    currency: string;       // e.g. "USD"
+    currency: string;       // ISO 4217 as returned by Printful, normally PRINTFUL_QUOTE_CURRENCY
     minDeliveryDays: number;
     maxDeliveryDays: number;
 }
 
 /**
  * Get shipping rates from Printful for a set of items to a destination country.
- * Printful returns rates in USD — caller should convert to target currency.
+ * Quotes are requested in PRINTFUL_QUOTE_CURRENCY (EUR). The store itself is
+ * configured in AUD, so never assume the currency: convert each result with
+ * shippingQuoteToEurCents from config/shipping.
+ * Returns [] on any failure so callers can fall back.
  */
 export async function getShippingRates(
     countryCode: string,
@@ -39,13 +44,20 @@ export async function getShippingRates(
             variant_id: item.variant_id,
             quantity: item.quantity,
         })),
+        currency: PRINTFUL_QUOTE_CURRENCY,
     };
 
-    const res = await fetch(`${PRINTFUL_API}/shipping/rates`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(body),
-    });
+    let res: Response;
+    try {
+        res = await fetch(`${PRINTFUL_API}/shipping/rates`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(body),
+        });
+    } catch (err) {
+        console.error('Printful shipping rates request failed:', err);
+        return [];
+    }
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -53,7 +65,7 @@ export async function getShippingRates(
         return [];
     }
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     const results: ShippingRateResult[] = (data.result || []).map((r: Record<string, unknown>) => ({
         id: r.id as string,
         name: r.name as string,
