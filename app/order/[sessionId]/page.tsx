@@ -111,7 +111,7 @@ export default async function OrderPage({
                                 Pending
                             </span>
                         )}
-                        {printfulStatus === 'submitted' && (
+                        {(printfulStatus === 'submitted' || printfulStatus === 'draft') && (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
                                 <Printer className="w-3.5 h-3.5" />
                                 Sent to printer

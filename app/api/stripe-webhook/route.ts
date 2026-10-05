@@ -128,7 +128,10 @@ export async function POST(request: NextRequest) {
                 zip: addr?.postal_code || '',
             };
 
-            // Create Printful order (as draft — review before confirming)
+            // Create Printful order. With PRINTFUL_AUTO_CONFIRM on (the default)
+            // this also confirms it for fulfillment; if confirmation fails the
+            // order stays a draft and the daily sweep (/api/cron/printful-drafts)
+            // retries it.
             const result = await createPrintfulOrder({
                 externalId: session.id,
                 recipient,
@@ -136,15 +139,20 @@ export async function POST(request: NextRequest) {
             });
 
             if (result) {
+                const printfulStatus = result.status === 'draft' ? 'draft' : 'submitted';
                 await supabase
                     .from('orders')
                     .update({
                         printful_order_id: String(result.printfulOrderId),
-                        printful_status: 'submitted',
+                        printful_status: printfulStatus,
                     })
                     .eq('stripe_session_id', session.id);
 
-                console.log(`Printful order ${result.printfulOrderId} created for session ${session.id}`);
+                if (printfulStatus === 'draft') {
+                    console.warn(`Printful order ${result.printfulOrderId} for session ${session.id} is still a DRAFT (not confirmed)`);
+                } else {
+                    console.log(`Printful order ${result.printfulOrderId} confirmed for session ${session.id} (status: ${result.status})`);
+                }
             } else {
                 await supabase
                     .from('orders')

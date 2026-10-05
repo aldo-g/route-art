@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS orders (
     shipping_name text,
     shipping_address jsonb,           -- { line1, line2, city, state, postal_code, country }
     printful_order_id text,           -- Printful order ID after submission
-    printful_status text              -- submitted | failed | in_production | shipped
+    printful_status text              -- draft | submitted | failed | in_production | shipped | ...
 );
 
 -- Index for looking up orders by Stripe session

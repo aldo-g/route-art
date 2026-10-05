@@ -13,6 +13,10 @@ import { checkRateLimit } from '@/lib/rate-limit';
  *   { type: string, created: number, retries: number, store: number, data: { order: { ... } } }
  *
  * We match orders via external_id (our Stripe session ID).
+ *
+ * Note: `order_created` fires for drafts too. If the order is still a draft
+ * when it arrives, the status we write here is 'draft' rather than 'submitted'
+ * so the order status page and the daily sweep stay accurate.
  */
 
 // Map Printful event types to our printful_status values
@@ -82,8 +86,12 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabase();
 
-    // Build the update payload
-    const update: Record<string, string> = { printful_status: newStatus };
+    // Build the update payload. A freshly created order that is still a
+    // Printful draft has not been submitted for fulfillment yet.
+    const printfulOrderStatus = order.status as string | undefined;
+    const resolvedStatus =
+        eventType === 'order_created' && printfulOrderStatus === 'draft' ? 'draft' : newStatus;
+    const update: Record<string, string> = { printful_status: resolvedStatus };
     if (printfulOrderId) {
         update.printful_order_id = String(printfulOrderId);
     }
@@ -109,6 +117,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
     }
 
-    console.log(`Printful webhook: ${eventType} → ${newStatus} for ${externalId || printfulOrderId}`);
+    console.log(`Printful webhook: ${eventType} → ${resolvedStatus} for ${externalId || printfulOrderId}`);
     return NextResponse.json({ received: true });
 }
