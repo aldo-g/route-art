@@ -4,12 +4,28 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { CartItem, getCartItems, addCartItem, removeCartItem, updateCartItem, clearCart } from '@/lib/cart';
 import { PrintSize, ProductType } from '@/config/products';
 
+export interface AddItemParams {
+    routeName: string;
+    routeId: string;
+    productType: ProductType;
+    size: PrintSize;
+    quantity?: number;
+    /** Small preview, kept in IndexedDB for the cart thumbnail. */
+    imageDataUrl: string;
+    posterId: string;
+    imageUrl: string;
+    previewUrl: string;
+    printWidth: number;
+    printHeight: number;
+    printDpi: number;
+}
+
 interface CartContextValue {
     items: CartItem[];
     count: number;
     isCartOpen: boolean;
     setCartOpen: (open: boolean) => void;
-    addItem: (params: { routeName: string; routeId: string; productType: ProductType; size: PrintSize; quantity?: number; imageDataUrl: string }) => Promise<void>;
+    addItem: (params: AddItemParams) => Promise<void>;
     removeItem: (id: string) => Promise<void>;
     updateQuantity: (id: string, quantity: number) => Promise<void>;
     clearAll: () => Promise<void>;
@@ -27,7 +43,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     const count = items.reduce((sum, item) => sum + item.quantity, 0);
 
-    const addItem = useCallback(async (params: { routeName: string; routeId: string; productType: ProductType; size: PrintSize; quantity?: number; imageDataUrl: string }) => {
+    const addItem = useCallback(async (params: AddItemParams) => {
         const item: CartItem = {
             id: crypto.randomUUID(),
             routeName: params.routeName,
@@ -36,6 +52,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
             size: params.size,
             quantity: params.quantity || 1,
             addedAt: Date.now(),
+            posterId: params.posterId,
+            imageUrl: params.imageUrl,
+            previewUrl: params.previewUrl,
+            printWidth: params.printWidth,
+            printHeight: params.printHeight,
+            printDpi: params.printDpi,
         };
         await addCartItem(item, params.imageDataUrl);
         setItems(prev => [...prev, item]);

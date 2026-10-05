@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
+import { BUSINESS, formatBusinessAddress } from '@/config/business';
 
 export const metadata: Metadata = {
     title: 'Privacy Policy',
@@ -12,13 +13,17 @@ export default function PrivacyPage() {
                 <Link href="/" className="text-xs text-neutral-400 no-underline hover:text-neutral-600">&larr; Back to home</Link>
 
                 <h1>Privacy Policy</h1>
-                <p className="text-neutral-500">Last updated: February 2026</p>
+                <p className="text-neutral-500">Last updated: October 2026</p>
 
                 <h2>Who we are</h2>
                 <p>
                     Contour Map Studio (&ldquo;we&rdquo;, &ldquo;us&rdquo;, &ldquo;our&rdquo;) operates the website
                     at contourmapstudio.com. This policy explains how we collect, use, and protect your personal data
                     when you use our service.
+                </p>
+                <p>
+                    The data controller is {BUSINESS.legalName}, {formatBusinessAddress()}. Contact:{' '}
+                    <a href={`mailto:${BUSINESS.email}`}>{BUSINESS.email}</a>.
                 </p>
 
                 <h2>What data we collect</h2>
@@ -27,6 +32,7 @@ export default function PrivacyPage() {
                     <li><strong>Poster images</strong> &mdash; when you add a poster to your cart and check out, the rendered image is uploaded to our servers to fulfil your order.</li>
                     <li><strong>Order information</strong> &mdash; name, email address, shipping address, and order details are collected at checkout to process and deliver your order.</li>
                     <li><strong>Payment data</strong> &mdash; all payments are processed by <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer">Stripe</a>. We never see or store your full card number.</li>
+                    <li><strong>Tax calculation</strong> &mdash; Stripe uses your shipping address to calculate VAT or sales tax due on your order. We keep the tax amounts charged as part of your order record for accounting purposes.</li>
                     <li><strong>Strava data</strong> &mdash; if you connect Strava, we access your activity list and route data via the Strava API. We do not store your Strava credentials.</li>
                     <li><strong>IP-based location</strong> &mdash; we detect your approximate country from your IP address to display prices in your local currency. This is not stored.</li>
                 </ul>

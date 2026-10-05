@@ -29,7 +29,9 @@ function SuccessContent() {
                 <div className="space-y-2">
                     <h1 className="text-2xl font-semibold text-neutral-900">Your print is being prepared.</h1>
                     <p className="text-sm text-neutral-500">
-                        Thank you for your order. We&apos;ll send you an email with tracking details once your print ships.
+                        Thank you for your order. A payment receipt is on its way to your inbox, and you&apos;ll get a
+                        shipping notification with tracking once your print ships.
+                        {sessionId && ' You can also check progress on your order page below.'}
                     </p>
                 </div>
 

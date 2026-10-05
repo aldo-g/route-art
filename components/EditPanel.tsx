@@ -101,11 +101,85 @@ const getLandmarkIcon = (type: Landmark['type']) => {
     }
 };
 
-// Section Header Component
+// Section Header Component — uppercase micro-label, the system's metadata voice
 function SectionHeader({ title }: { title: string }) {
     return (
-        <div className="mb-3">
-            <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">{title}</h4>
+        <div className="mb-4">
+            <h4 className="text-[12px] font-bold tracking-[0.14em] uppercase text-muted">{title}</h4>
+        </div>
+    );
+}
+
+// Segmented Off/On control — replaces the rounded pill switch
+function SegmentedToggle({
+    checked,
+    onChange,
+    offLabel = 'Off',
+    onLabel = 'On',
+    id,
+}: {
+    checked: boolean;
+    onChange: (value: boolean) => void;
+    offLabel?: string;
+    onLabel?: string;
+    id?: string;
+}) {
+    const base = 'px-[13px] py-1.5 min-h-[32px] text-[12px] font-semibold tracking-[0.08em] uppercase transition-colors';
+    return (
+        <div className="flex border-2 border-ink flex-shrink-0" id={id}>
+            <button
+                type="button"
+                aria-pressed={!checked}
+                onClick={() => onChange(false)}
+                className={`${base} ${!checked ? 'bg-ink text-paper' : 'text-muted hover:text-ink'}`}
+            >
+                {offLabel}
+            </button>
+            <button
+                type="button"
+                aria-pressed={checked}
+                onClick={() => onChange(true)}
+                className={`${base} ${checked ? 'bg-accent text-white' : 'text-muted hover:text-ink'}`}
+            >
+                {onLabel}
+            </button>
+        </div>
+    );
+}
+
+// Square-track slider with accent fill and a hard ink thumb
+function Slider({
+    value,
+    onChange,
+    label,
+}: {
+    value: number;
+    onChange: (value: number) => void;
+    label?: string;
+}) {
+    return (
+        <div className="flex items-center gap-3.5">
+            <div className="relative flex-1 h-5">
+                <div className="absolute left-0 right-0 top-2 h-1 bg-divider" />
+                <div className="absolute left-0 top-2 h-1 bg-accent" style={{ width: `${value * 100}%` }} />
+                <div
+                    className="absolute top-0 w-2 h-5 -ml-1 bg-ink pointer-events-none"
+                    style={{ left: `${value * 100}%` }}
+                />
+                <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={value}
+                    aria-label={label}
+                    onChange={(e) => onChange(parseFloat(e.target.value))}
+                    className="absolute inset-0 w-full h-5 opacity-0 cursor-pointer"
+                />
+            </div>
+            <span className="text-[13px] font-bold tracking-[0.04em] tabular-nums w-[38px] text-right">
+                {Math.round(value * 100)}%
+            </span>
         </div>
     );
 }
@@ -253,7 +327,7 @@ function TourOverlay({
             {/* Highlight ring around the cutout area */}
             {targetRect && (
                 <div
-                    className="absolute rounded-lg ring-4 ring-blue-500 ring-offset-4 ring-offset-transparent pointer-events-none transition-all duration-300"
+                    className="absolute border-2 border-accent pointer-events-none transition-all duration-300"
                     style={{
                         top: targetRect.top - 8,
                         left: targetRect.left - 8,
@@ -265,7 +339,7 @@ function TourOverlay({
 
             {/* Tooltip card */}
             <div
-                className="absolute w-80 bg-white rounded-xl shadow-2xl p-5 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto"
+                className="absolute w-80 bg-paper border-2 border-ink shadow-[0_12px_32px_color-mix(in_srgb,#2d2b2b_22%,transparent)] p-6 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto"
                 style={tooltipStyle as React.CSSProperties}
             >
                 {/* Progress indicator */}
@@ -273,32 +347,32 @@ function TourOverlay({
                     {steps.map((_, i) => (
                         <div
                             key={i}
-                            className={`h-1.5 rounded-full transition-all ${
+                            className={`h-1 transition-all ${
                                 i === currentStep
-                                    ? 'w-6 bg-blue-600'
+                                    ? 'w-6 bg-accent'
                                     : i < currentStep
-                                    ? 'w-1.5 bg-blue-300'
-                                    : 'w-1.5 bg-neutral-200'
+                                    ? 'w-1.5 bg-accent-700'
+                                    : 'w-1.5 bg-divider'
                             }`}
                         />
                     ))}
                 </div>
 
                 {/* Content */}
-                <h3 className="text-lg font-semibold text-neutral-900 mb-2">{step.title}</h3>
-                <p className="text-sm text-neutral-600 leading-relaxed mb-5">{step.description}</p>
+                <h3 className="text-[20px] font-bold tracking-[-0.02em] mb-2">{step.title}</h3>
+                <p className="text-[14px] text-muted leading-[1.55] mb-6">{step.description}</p>
 
                 {/* Actions */}
                 <div className="flex items-center justify-between">
                     <button
                         onClick={onSkip}
-                        className="text-sm text-neutral-400 hover:text-neutral-600 transition-colors"
+                        className="text-[13px] font-semibold tracking-[0.06em] uppercase text-muted hover:text-accent transition-colors"
                     >
                         Skip tour
                     </button>
                     <button
                         onClick={onNext}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                        className="flex items-center gap-2 px-5 py-2.5 min-h-[44px] bg-accent text-white text-[13px] font-semibold tracking-[0.06em] uppercase hover:bg-accent-700 transition-colors"
                     >
                         {isLast ? 'Get Started' : 'Next'}
                         <ArrowRight className="w-4 h-4" />
@@ -309,7 +383,7 @@ function TourOverlay({
     );
 }
 
-// Toggle Switch Component
+// Toggle Switch Component — segmented Off/On, per the modernist system
 function ToggleSwitch({
     checked,
     onChange,
@@ -319,29 +393,7 @@ function ToggleSwitch({
     onChange: (value: boolean) => void;
     id: string;
 }) {
-    return (
-        <div className="relative inline-block w-9 h-5 align-middle select-none">
-            <input
-                type="checkbox"
-                id={id}
-                checked={checked}
-                onChange={(e) => onChange(e.target.checked)}
-                className="sr-only peer"
-            />
-            <label
-                htmlFor={id}
-                className={`block w-9 h-5 rounded-full cursor-pointer transition-colors duration-200 ${
-                    checked ? 'bg-neutral-900' : 'bg-neutral-300'
-                }`}
-            >
-                <span
-                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
-                        checked ? 'translate-x-4' : 'translate-x-0'
-                    }`}
-                />
-            </label>
-        </div>
-    );
+    return <SegmentedToggle checked={checked} onChange={onChange} id={id} />;
 }
 
 // Toggle Row Component
@@ -357,8 +409,8 @@ function ToggleRow({
     id: string;
 }) {
     return (
-        <div className="flex items-center justify-between py-1.5">
-            <span className="text-sm text-neutral-700">{label}</span>
+        <div className="flex items-center justify-between gap-4 py-2">
+            <span className="text-[15px]">{label}</span>
             <ToggleSwitch checked={checked} onChange={onChange} id={id} />
         </div>
     );
@@ -653,17 +705,17 @@ export default function EditPanel({
             {/* Mobile toggle button - fixed at bottom */}
             <button
                 onClick={() => setIsMobileOpen(!isMobileOpen)}
-                className="lg:hidden fixed bottom-4 right-4 z-40 flex items-center gap-2 px-4 py-3 bg-neutral-900 text-white rounded-full shadow-lg"
+                className="lg:hidden fixed bottom-4 right-4 z-40 flex items-center gap-2 px-5 py-3 min-h-[44px] bg-accent text-white border-2 border-ink shadow-[0_3px_10px_color-mix(in_srgb,#2d2b2b_16%,transparent)]"
             >
                 <Settings className="w-5 h-5" />
-                <span className="text-sm font-medium">Customize</span>
+                <span className="text-[13px] font-semibold tracking-[0.06em] uppercase">Customize</span>
                 <ChevronUp className={`w-4 h-4 transition-transform ${isMobileOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {/* Mobile overlay */}
             {isMobileOpen && (
                 <div
-                    className="lg:hidden fixed inset-0 bg-black/50 z-40"
+                    className="lg:hidden fixed inset-0 bg-[color-mix(in_srgb,#2d2b2b_50%,transparent)] z-40"
                     onClick={() => setIsMobileOpen(false)}
                 />
             )}
@@ -680,32 +732,33 @@ export default function EditPanel({
 
             {/* Panel - sidebar on desktop, bottom drawer on mobile */}
             <div className={`
-                lg:relative lg:w-80 lg:h-full lg:max-h-full lg:translate-y-0
+                lg:relative lg:w-[400px] lg:h-full lg:max-h-full lg:translate-y-0
                 fixed bottom-0 left-0 right-0 z-50 max-h-[80vh]
-                bg-neutral-50 border-l border-neutral-200 flex flex-col flex-shrink-0 overflow-hidden
+                bg-paper border-t-2 lg:border-t-0 border-ink flex flex-col flex-shrink-0 overflow-hidden
                 transition-transform duration-300 ease-out
                 ${isMobileOpen ? 'translate-y-0' : 'translate-y-full lg:translate-y-0'}
-                rounded-t-xl lg:rounded-none shadow-xl lg:shadow-none
+                shadow-[0_-4px_24px_color-mix(in_srgb,#2d2b2b_18%,transparent)] lg:shadow-none
             `}>
                 {/* Header */}
-                <div className="p-4 border-b border-neutral-200 bg-white flex items-center justify-between">
+                <div className="px-7 py-6 border-b-2 border-ink bg-paper flex items-start justify-between gap-4">
                     <div>
-                        <h3 className="font-semibold text-base text-neutral-900">Customize</h3>
-                        <p className="text-xs text-neutral-400 mt-0.5">Adjust your map below</p>
+                        <h3 className="text-[22px] font-bold tracking-[-0.02em]">Customize</h3>
+                        <p className="mt-0.5 text-[13px] text-muted">Adjust your map below</p>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => { setTourStep(0); setShowTour(true); }}
-                            className="w-6 h-6 flex items-center justify-center rounded-full border border-neutral-200 text-xs font-medium text-neutral-400 hover:text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50 transition-colors"
+                            className="w-7 h-7 flex items-center justify-center border-2 border-divider text-[13px] font-bold text-muted hover:text-accent hover:border-accent transition-colors"
                             title="Show guided tour"
                         >
                             ?
                         </button>
                         <button
                             onClick={() => setIsMobileOpen(false)}
-                            className="lg:hidden p-1 hover:bg-neutral-100 rounded"
+                            aria-label="Close panel"
+                            className="lg:hidden w-8 h-8 flex items-center justify-center text-muted hover:text-accent transition-colors"
                         >
-                            <X className="w-5 h-5 text-neutral-500" />
+                            <X className="w-5 h-5" />
                         </button>
                     </div>
                 </div>
@@ -714,40 +767,38 @@ export default function EditPanel({
                 <div className="flex-1 overflow-y-auto">
 
                     {/* ========== SECTION 1: Route ========== */}
-                    <div id="route-section" className="p-4 bg-white border-b border-neutral-200">
+                    <div id="route-section" className="px-7 py-6 bg-paper border-b-2 border-ink">
                         <SectionHeader title="Route" />
 
                         {!statsDefaults ? (
-                            <p className="text-sm text-neutral-400 text-center py-4">Loading route info...</p>
+                            <p className="text-[13px] tracking-[0.08em] uppercase text-faint text-center py-4">Loading route info…</p>
                         ) : (
-                            <div className="space-y-3">
-                                {/* Route Name & Location - editable on click */}
-                                <div className="space-y-1">
-                                    <p className="text-base font-medium text-neutral-900">{displayRouteName || 'Untitled Route'}</p>
-                                    {displayLocation && (
-                                        <p className="text-sm text-neutral-500">{displayLocation}</p>
-                                    )}
-                                </div>
+                            <div>
+                                {/* Route Name & Location */}
+                                <p className="text-[20px] font-bold tracking-[-0.01em] leading-[1.2]">{displayRouteName || 'Untitled Route'}</p>
+                                {displayLocation && (
+                                    <p className="mt-1 text-[14px] text-muted">{displayLocation}</p>
+                                )}
 
-                                {/* Stats Grid */}
-                                <div className="grid grid-cols-3 gap-3">
-                                    <div className="bg-neutral-50 rounded-lg p-2.5 text-center">
-                                        <p className="text-xs text-neutral-500 mb-0.5">Distance</p>
-                                        <p className="text-sm font-semibold text-neutral-900">{displayDistance} km</p>
+                                {/* Stats Grid — hard-ruled cells, no radius */}
+                                <div className="mt-5 grid grid-cols-3 gap-0.5 bg-divider border-2 border-divider">
+                                    <div className="bg-paper px-2.5 py-3">
+                                        <p className="text-[11px] tracking-[0.08em] uppercase text-faint">Distance</p>
+                                        <p className="mt-1 text-[17px] font-bold">{displayDistance} km</p>
                                     </div>
-                                    <div className="bg-neutral-50 rounded-lg p-2.5 text-center">
-                                        <p className="text-xs text-neutral-500 mb-0.5">Elevation +</p>
-                                        <p className="text-sm font-semibold text-neutral-900">{displayElevationGain} m</p>
+                                    <div className="bg-paper px-2.5 py-3">
+                                        <p className="text-[11px] tracking-[0.08em] uppercase text-faint">Elevation +</p>
+                                        <p className="mt-1 text-[17px] font-bold">{displayElevationGain} m</p>
                                     </div>
-                                    <div className="bg-neutral-50 rounded-lg p-2.5 text-center">
-                                        <p className="text-xs text-neutral-500 mb-0.5">Elevation -</p>
-                                        <p className="text-sm font-semibold text-neutral-900">{displayElevationLoss} m</p>
+                                    <div className="bg-paper px-2.5 py-3">
+                                        <p className="text-[11px] tracking-[0.08em] uppercase text-faint">Elevation −</p>
+                                        <p className="mt-1 text-[17px] font-bold">{displayElevationLoss} m</p>
                                     </div>
                                 </div>
 
                                 {/* Date */}
                                 {(displayDateStart || displayDateEnd) && (
-                                    <p className="text-sm text-neutral-500">
+                                    <p className="mt-4 text-[14px] text-muted">
                                         {formatDateForDisplay(displayDateStart)}
                                         {displayDateEnd && displayDateEnd !== displayDateStart && (
                                             <> – {formatDateForDisplay(displayDateEnd)}</>
@@ -758,75 +809,76 @@ export default function EditPanel({
                                 {/* Edit Stats Button */}
                                 <button
                                     onClick={() => setStatsEditOpen(!statsEditOpen)}
-                                    className={`text-xs font-medium transition-colors ${
+                                    className={`mt-[18px] inline-flex items-center gap-2 pb-0.5 min-h-[44px] text-[13px] font-semibold tracking-[0.06em] uppercase transition-colors ${
                                         statsEditOpen
-                                            ? 'text-neutral-500 hover:text-neutral-700'
-                                            : 'text-blue-600 hover:text-blue-700 underline underline-offset-2'
+                                            ? 'text-muted border-b-2 border-divider hover:text-ink hover:border-ink'
+                                            : 'text-accent-700 border-b-2 border-accent hover:text-accent'
                                     }`}
                                 >
-                                    {statsEditOpen ? 'Cancel' : 'Edit route details →'}
+                                    {statsEditOpen ? 'Cancel' : 'Edit route details'}
+                                    {!statsEditOpen && <ArrowRight className="w-[15px] h-[15px]" />}
                                 </button>
 
                                 {/* Inline Stats Editor */}
                                 {statsEditOpen && (
-                                    <div className="mt-3 p-3 bg-neutral-50 rounded-lg space-y-3 border border-neutral-200">
+                                    <div className="mt-4 p-4 bg-background space-y-4 border-2 border-divider">
                                         <div>
-                                            <label className="block text-xs font-medium text-neutral-600 mb-1">Route Name</label>
+                                            <label className="block text-[12px] tracking-[0.06em] uppercase text-muted mb-1.5">Route Name</label>
                                             <input
                                                 type="text"
                                                 value={routeName}
                                                 onChange={(e) => setRouteName(e.target.value)}
-                                                className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                                className="w-full px-3 py-2 min-h-[36px] text-[14px] bg-background border-2 border-divider focus:outline-none focus:border-accent placeholder:text-faint transition-colors"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-medium text-neutral-600 mb-1">Location</label>
+                                            <label className="block text-[12px] tracking-[0.06em] uppercase text-muted mb-1.5">Location</label>
                                             <input
                                                 type="text"
                                                 value={location}
                                                 onChange={(e) => setLocation(e.target.value)}
                                                 placeholder="e.g. Albanian Alps, Albania"
-                                                className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                                className="w-full px-3 py-2 min-h-[36px] text-[14px] bg-background border-2 border-divider focus:outline-none focus:border-accent placeholder:text-faint transition-colors"
                                             />
                                         </div>
                                         <div className="grid grid-cols-3 gap-2">
                                             <div>
-                                                <label className="block text-xs font-medium text-neutral-600 mb-1">Distance (km)</label>
+                                                <label className="block text-[11px] tracking-[0.04em] uppercase text-muted mb-1.5 whitespace-nowrap">Distance (km)</label>
                                                 <input
                                                     type="text"
                                                     value={distance}
                                                     onChange={(e) => setDistance(e.target.value)}
-                                                    className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                                    className="w-full px-3 py-2 min-h-[36px] text-[14px] bg-background border-2 border-divider focus:outline-none focus:border-accent placeholder:text-faint transition-colors"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-medium text-neutral-600 mb-1">Gain (m)</label>
+                                                <label className="block text-[11px] tracking-[0.04em] uppercase text-muted mb-1.5 whitespace-nowrap">Gain (m)</label>
                                                 <input
                                                     type="text"
                                                     value={elevationGain}
                                                     onChange={(e) => setElevationGain(e.target.value)}
-                                                    className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                                    className="w-full px-3 py-2 min-h-[36px] text-[14px] bg-background border-2 border-divider focus:outline-none focus:border-accent placeholder:text-faint transition-colors"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-medium text-neutral-600 mb-1">Loss (m)</label>
+                                                <label className="block text-[11px] tracking-[0.04em] uppercase text-muted mb-1.5 whitespace-nowrap">Loss (m)</label>
                                                 <input
                                                     type="text"
                                                     value={elevationLoss}
                                                     onChange={(e) => setElevationLoss(e.target.value)}
-                                                    className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                                    className="w-full px-3 py-2 min-h-[36px] text-[14px] bg-background border-2 border-divider focus:outline-none focus:border-accent placeholder:text-faint transition-colors"
                                                 />
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-medium text-neutral-600 mb-1">Date</label>
+                                            <label className="block text-[12px] tracking-[0.06em] uppercase text-muted mb-1.5">Date</label>
                                             <div className="flex gap-1 mb-2">
                                                 <button
                                                     type="button"
                                                     onClick={() => setIsDateRange(false)}
-                                                    className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${!isDateRange
-                                                        ? 'bg-neutral-900 text-white border-neutral-900'
-                                                        : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                    className={`flex-1 py-2 min-h-[36px] text-[12px] font-semibold tracking-[0.06em] uppercase border-2 transition-colors ${!isDateRange
+                                                        ? 'bg-ink text-paper border-ink'
+                                                        : 'bg-paper text-muted border-divider hover:border-ink hover:text-ink'
                                                     }`}
                                                 >
                                                     Single date
@@ -834,9 +886,9 @@ export default function EditPanel({
                                                 <button
                                                     type="button"
                                                     onClick={() => setIsDateRange(true)}
-                                                    className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${isDateRange
-                                                        ? 'bg-neutral-900 text-white border-neutral-900'
-                                                        : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                    className={`flex-1 py-2 min-h-[36px] text-[12px] font-semibold tracking-[0.06em] uppercase border-2 transition-colors ${isDateRange
+                                                        ? 'bg-ink text-paper border-ink'
+                                                        : 'bg-paper text-muted border-divider hover:border-ink hover:text-ink'
                                                     }`}
                                                 >
                                                     Date range
@@ -847,16 +899,16 @@ export default function EditPanel({
                                                     type="date"
                                                     value={dateStart}
                                                     onChange={(e) => setDateStart(e.target.value)}
-                                                    className="flex-1 px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                                    className="flex-1 px-3 py-2 min-h-[36px] text-[14px] bg-background border-2 border-divider focus:outline-none focus:border-accent placeholder:text-faint transition-colors"
                                                 />
                                                 {isDateRange && (
                                                     <>
-                                                        <span className="flex items-center text-neutral-400 text-sm">–</span>
+                                                        <span className="flex items-center text-muted text-[14px]">–</span>
                                                         <input
                                                             type="date"
                                                             value={dateEnd}
                                                             onChange={(e) => setDateEnd(e.target.value)}
-                                                            className="flex-1 px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 bg-white"
+                                                            className="flex-1 px-3 py-2 min-h-[36px] text-[14px] bg-background border-2 border-divider focus:outline-none focus:border-accent placeholder:text-faint transition-colors"
                                                         />
                                                     </>
                                                 )}
@@ -865,13 +917,13 @@ export default function EditPanel({
                                         <div className="flex gap-2 pt-1">
                                             <button
                                                 onClick={handleSaveStats}
-                                                className="flex-1 py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 transition-colors font-medium"
+                                                className="flex-1 py-2.5 min-h-[44px] bg-accent text-white text-[13px] font-semibold tracking-[0.06em] uppercase hover:bg-accent-700 transition-colors"
                                             >
                                                 Save
                                             </button>
                                             <button
                                                 onClick={handleResetStats}
-                                                className="py-2 px-3 text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
+                                                className="py-2.5 px-4 min-h-[44px] text-[13px] font-semibold tracking-[0.06em] uppercase text-muted hover:text-accent transition-colors"
                                             >
                                                 Reset
                                             </button>
@@ -884,11 +936,11 @@ export default function EditPanel({
                     </div>
 
                     {/* ========== SECTION 2: Appearance (FEATURED) ========== */}
-                    <div className="p-4">
+                    <div className="px-7 py-6 border-b-2 border-ink">
                         <SectionHeader title="Appearance" />
 
-                        {/* Featured Card */}
-                        <div id="appearance-section" className="bg-white rounded-xl p-4 border border-neutral-200 shadow-sm space-y-3">
+                        {/* Featured group */}
+                        <div id="appearance-section">
                             {/* Theme Toggles with inline sliders */}
                             <ToggleRow
                                 label="Dark theme"
@@ -904,21 +956,10 @@ export default function EditPanel({
                             />
 
                             {/* Contour contrast with slider directly below */}
-                            <div className="flex items-center justify-between py-1">
-                                <span className="text-sm text-neutral-700">Contour contrast</span>
-                            </div>
-                            <div className="pl-4 pb-1">
-                                <div className="flex items-center gap-3">
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="1"
-                                        step="0.05"
-                                        value={contourIntensity}
-                                        onChange={(e) => onContourIntensityChange(parseFloat(e.target.value))}
-                                        className="flex-1 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-neutral-900"
-                                    />
-                                    <span className="text-xs text-neutral-400 tabular-nums w-8">{Math.round(contourIntensity * 100)}%</span>
+                            <div className="pt-4">
+                                <span className="text-[15px]">Contour contrast</span>
+                                <div className="mt-3">
+                                    <Slider value={contourIntensity} onChange={onContourIntensityChange} label="Contour contrast" />
                                 </div>
                             </div>
 
@@ -930,19 +971,8 @@ export default function EditPanel({
                                 id="reliefShading"
                             />
                             {showShading && (
-                                <div className="pl-4 pb-1">
-                                    <div className="flex items-center gap-3">
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="1"
-                                            step="0.05"
-                                            value={shadingIntensity}
-                                            onChange={(e) => onShadingIntensityChange(parseFloat(e.target.value))}
-                                            className="flex-1 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-neutral-900"
-                                        />
-                                        <span className="text-xs text-neutral-400 tabular-nums w-8">{Math.round(shadingIntensity * 100)}%</span>
-                                    </div>
+                                <div className="pb-1">
+                                    <Slider value={shadingIntensity} onChange={onShadingIntensityChange} label="Relief shading intensity" />
                                 </div>
                             )}
 
@@ -954,19 +984,8 @@ export default function EditPanel({
                                 id="routeContrast"
                             />
                             {routeHighlight && (
-                                <div className="pl-4 pb-1">
-                                    <div className="flex items-center gap-3">
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="1"
-                                            step="0.05"
-                                            value={routeHighlightIntensity}
-                                            onChange={(e) => onRouteHighlightIntensityChange(parseFloat(e.target.value))}
-                                            className="flex-1 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-neutral-900"
-                                        />
-                                        <span className="text-xs text-neutral-400 tabular-nums w-8">{Math.round(routeHighlightIntensity * 100)}%</span>
-                                    </div>
+                                <div className="pb-1">
+                                    <Slider value={routeHighlightIntensity} onChange={onRouteHighlightIntensityChange} label="Route contrast intensity" />
                                 </div>
                             )}
 
@@ -978,32 +997,32 @@ export default function EditPanel({
                                 id="highlightsToggle"
                             />
                             {showHighlights && (
-                                <div className="pl-4 pb-2 space-y-2">
-                                    <div className="flex gap-2">
+                                <div className="mt-3.5 border-2 border-divider p-3.5 space-y-3">
+                                    <div className="flex gap-2.5">
                                         <button
                                             onClick={onSelectAllLandmarks}
-                                            className="flex-1 text-xs py-1.5 px-2 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
+                                            className="flex-1 py-2 px-2.5 min-h-[36px] border-2 border-ink text-[11px] font-semibold tracking-[0.08em] uppercase hover:bg-ink hover:text-paper transition-colors"
                                         >
-                                            Select All
+                                            Select all
                                         </button>
                                         <button
                                             onClick={onDeselectAllLandmarks}
-                                            className="flex-1 text-xs py-1.5 px-2 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
+                                            className="flex-1 py-2 px-2.5 min-h-[36px] border-2 border-divider text-[11px] font-semibold tracking-[0.08em] uppercase text-muted hover:border-ink hover:text-ink transition-colors"
                                         >
-                                            Deselect All
+                                            Deselect all
                                         </button>
                                     </div>
 
                                     {/* Add Custom Landmark */}
-                                    <div className="border-t border-neutral-100 pt-2">
+                                    <div className="border-t-2 border-divider pt-3">
                                         {isPlacingLandmark ? (
                                             <div className="space-y-2">
-                                                <p className="text-xs text-neutral-500 text-center py-2">
+                                                <p className="text-[12px] text-muted text-center py-2">
                                                     Click on the map to place your highlight
                                                 </p>
                                                 <button
                                                     onClick={onCancelPlacingLandmark}
-                                                    className="w-full py-1.5 text-xs border border-neutral-200 text-neutral-600 rounded-lg hover:bg-neutral-50 transition-colors"
+                                                    className="w-full py-2 min-h-[36px] border-2 border-divider text-[12px] font-semibold tracking-[0.06em] uppercase text-muted hover:border-ink hover:text-ink transition-colors"
                                                 >
                                                     Cancel
                                                 </button>
@@ -1011,7 +1030,7 @@ export default function EditPanel({
                                         ) : !showAddForm ? (
                                             <button
                                                 onClick={() => setShowAddForm(true)}
-                                                className="w-full flex items-center justify-center gap-2 py-2 text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded-lg transition-colors"
+                                                className="w-full flex items-center justify-center gap-2 py-2 min-h-[36px] text-[12px] font-semibold tracking-[0.08em] uppercase text-accent-700 hover:text-accent transition-colors"
                                             >
                                                 <Plus className="w-3.5 h-3.5" />
                                                 Add highlight
@@ -1019,15 +1038,15 @@ export default function EditPanel({
                                         ) : (
                                             <div className="space-y-2">
                                                 <div className="flex items-center justify-between">
-                                                    <span className="text-xs font-medium text-neutral-600">New Highlight</span>
-                                                    <button onClick={handleCancelForm} className="text-xs text-neutral-400 hover:text-neutral-600">Cancel</button>
+                                                    <span className="text-[12px] font-bold tracking-[0.08em] uppercase text-muted">New highlight</span>
+                                                    <button onClick={handleCancelForm} className="text-[12px] font-semibold tracking-[0.06em] uppercase text-muted hover:text-accent transition-colors">Cancel</button>
                                                 </div>
                                                 <input
                                                     type="text"
                                                     placeholder="Name (required)"
                                                     value={newLandmarkName}
                                                     onChange={(e) => setNewLandmarkName(e.target.value)}
-                                                    className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                                                    className="w-full px-3 py-2 min-h-[36px] text-[14px] bg-background border-2 border-divider focus:outline-none focus:border-accent placeholder:text-faint transition-colors"
                                                 />
                                                 <div className="flex gap-1 flex-wrap">
                                                     {iconOptions.map(option => (
@@ -1035,9 +1054,9 @@ export default function EditPanel({
                                                             key={option.value}
                                                             type="button"
                                                             onClick={() => setNewLandmarkIcon(option.value)}
-                                                            className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded-lg border transition-colors ${newLandmarkIcon === option.value
-                                                                ? 'bg-neutral-900 text-white border-neutral-900'
-                                                                : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-semibold tracking-[0.06em] uppercase border-2 transition-colors ${newLandmarkIcon === option.value
+                                                                ? 'bg-ink text-paper border-ink'
+                                                                : 'bg-paper text-muted border-divider hover:border-ink hover:text-ink'
                                                             }`}
                                                         >
                                                             {getLandmarkIcon(option.value)}
@@ -1050,15 +1069,15 @@ export default function EditPanel({
                                                     placeholder="Elevation in meters (optional)"
                                                     value={newLandmarkElevation}
                                                     onChange={(e) => setNewLandmarkElevation(e.target.value)}
-                                                    className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                                                    className="w-full px-3 py-2 min-h-[36px] text-[14px] bg-background border-2 border-divider focus:outline-none focus:border-accent placeholder:text-faint transition-colors"
                                                 />
                                                 <div className="flex gap-1">
                                                     <button
                                                         type="button"
                                                         onClick={() => setUseManualCoords(false)}
-                                                        className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${!useManualCoords
-                                                            ? 'bg-neutral-900 text-white border-neutral-900'
-                                                            : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                        className={`flex-1 py-2 min-h-[36px] text-[12px] font-semibold tracking-[0.06em] uppercase border-2 transition-colors ${!useManualCoords
+                                                            ? 'bg-ink text-paper border-ink'
+                                                            : 'bg-paper text-muted border-divider hover:border-ink hover:text-ink'
                                                         }`}
                                                     >
                                                         Click on map
@@ -1066,9 +1085,9 @@ export default function EditPanel({
                                                     <button
                                                         type="button"
                                                         onClick={() => setUseManualCoords(true)}
-                                                        className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${useManualCoords
-                                                            ? 'bg-neutral-900 text-white border-neutral-900'
-                                                            : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                                        className={`flex-1 py-2 min-h-[36px] text-[12px] font-semibold tracking-[0.06em] uppercase border-2 transition-colors ${useManualCoords
+                                                            ? 'bg-ink text-paper border-ink'
+                                                            : 'bg-paper text-muted border-divider hover:border-ink hover:text-ink'
                                                         }`}
                                                     >
                                                         Enter coordinates
@@ -1082,20 +1101,20 @@ export default function EditPanel({
                                                                 placeholder="Latitude"
                                                                 value={newLandmarkLat}
                                                                 onChange={(e) => setNewLandmarkLat(e.target.value)}
-                                                                className="flex-1 px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                                                                className="flex-1 px-3 py-2 min-h-[36px] text-[14px] bg-background border-2 border-divider focus:outline-none focus:border-accent placeholder:text-faint transition-colors"
                                                             />
                                                             <input
                                                                 type="text"
                                                                 placeholder="Longitude"
                                                                 value={newLandmarkLng}
                                                                 onChange={(e) => setNewLandmarkLng(e.target.value)}
-                                                                className="flex-1 px-2.5 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                                                                className="flex-1 px-3 py-2 min-h-[36px] text-[14px] bg-background border-2 border-divider focus:outline-none focus:border-accent placeholder:text-faint transition-colors"
                                                             />
                                                         </div>
                                                         <button
                                                             onClick={handleAddWithCoords}
                                                             disabled={!newLandmarkName.trim() || !newLandmarkLat || !newLandmarkLng}
-                                                            className="w-full py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                                                            className="w-full py-2.5 min-h-[44px] bg-accent text-white text-[13px] font-semibold tracking-[0.06em] uppercase hover:bg-accent-700 disabled:bg-divider disabled:text-faint disabled:cursor-not-allowed transition-colors"
                                                         >
                                                             Add Highlight
                                                         </button>
@@ -1104,7 +1123,7 @@ export default function EditPanel({
                                                     <button
                                                         onClick={handleStartPlacing}
                                                         disabled={!newLandmarkName.trim()}
-                                                        className="w-full py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                                                        className="w-full py-2.5 min-h-[44px] bg-accent text-white text-[13px] font-semibold tracking-[0.06em] uppercase hover:bg-accent-700 disabled:bg-divider disabled:text-faint disabled:cursor-not-allowed transition-colors"
                                                     >
                                                         Click on map to place
                                                     </button>
@@ -1114,35 +1133,35 @@ export default function EditPanel({
                                     </div>
 
                                     {/* Landmarks List */}
-                                    <div className="border-t border-neutral-100 pt-2 max-h-40 overflow-y-auto">
+                                    <div className="border-t-2 border-divider pt-3 max-h-44 overflow-y-auto">
                                         {landmarks.length === 0 ? (
-                                            <p className="text-xs text-neutral-400 text-center py-4">
+                                            <p className="text-[12px] text-faint text-center py-4">
                                                 No highlights found near this route
                                             </p>
                                         ) : (
-                                            <div className="space-y-1">
+                                            <div>
                                                 {landmarks.map(landmark => (
                                                     <div
                                                         key={landmark.id}
-                                                        className={`flex items-center gap-2 p-1.5 rounded-lg transition-colors ${selectedLandmarkIds.has(landmark.id)
-                                                            ? 'bg-neutral-100'
-                                                            : 'hover:bg-neutral-50'
+                                                        className={`flex items-center gap-2.5 py-2 border-b-2 border-divider last:border-b-0 transition-colors ${selectedLandmarkIds.has(landmark.id)
+                                                            ? ''
+                                                            : 'opacity-70 hover:opacity-100'
                                                         }`}
                                                     >
                                                         <input
                                                             type="checkbox"
                                                             checked={selectedLandmarkIds.has(landmark.id)}
                                                             onChange={() => onToggleLandmark(landmark.id)}
-                                                            className="w-3.5 h-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500 cursor-pointer"
+                                                            className="w-[15px] h-[15px] flex-none appearance-none border-2 border-divider bg-paper checked:bg-accent checked:border-accent cursor-pointer transition-colors"
                                                         />
-                                                        <span className="text-neutral-400">
+                                                        <span className="text-faint flex-none">
                                                             {getLandmarkIcon(landmark.type)}
                                                         </span>
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="text-xs font-medium truncate">
+                                                            <p className="text-[13px] truncate">
                                                                 {landmark.name}
                                                                 {landmark.isCustom && (
-                                                                    <span className="ml-1 text-[9px] px-1 py-0.5 bg-neutral-200 text-neutral-500 rounded">
+                                                                    <span className="ml-1.5 text-[9px] font-semibold tracking-[0.08em] uppercase px-1.5 py-0.5 border border-divider text-muted">
                                                                         custom
                                                                     </span>
                                                                 )}
@@ -1152,7 +1171,7 @@ export default function EditPanel({
                                                             <button
                                                                 onClick={() => onToggleLabelSide(landmark.id)}
                                                                 title="Swap label side"
-                                                                className={`p-0.5 rounded transition-colors ${labelSideOverrides[landmark.id] ? 'text-neutral-700 bg-neutral-200' : 'text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100'}`}
+                                                                className={`p-1 flex-none transition-colors ${labelSideOverrides[landmark.id] ? 'text-ink bg-divider' : 'text-faint hover:text-ink'}`}
                                                             >
                                                                 <ArrowLeftRight className="w-3 h-3" />
                                                             </button>
@@ -1160,7 +1179,7 @@ export default function EditPanel({
                                                         {landmark.isCustom && (
                                                             <button
                                                                 onClick={() => onDeleteCustomLandmark(landmark.id)}
-                                                                className="p-0.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                                className="p-1 flex-none text-faint hover:text-accent transition-colors"
                                                             >
                                                                 <Trash2 className="w-3 h-3" />
                                                             </button>
@@ -1174,24 +1193,26 @@ export default function EditPanel({
                             )}
 
                             {/* Layout */}
-                            <div className="pt-2 border-t border-neutral-100">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm text-neutral-700">Layout</span>
-                                    <div className="flex gap-1">
+                            <div className="mt-6 pt-[18px] border-t-2 border-divider">
+                                <div className="flex items-center justify-between gap-4">
+                                    <span className="text-[15px]">Layout</span>
+                                    <div className="flex border-2 border-ink flex-shrink-0">
                                         <button
                                             onClick={() => onToggleOrientation(false)}
-                                            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${!isPortrait
-                                                ? 'bg-neutral-900 text-white border-neutral-900'
-                                                : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                            aria-pressed={!isPortrait}
+                                            className={`px-[13px] py-1.5 min-h-[32px] text-[12px] font-semibold tracking-[0.08em] uppercase transition-colors ${!isPortrait
+                                                ? 'bg-ink text-paper'
+                                                : 'text-muted hover:text-ink'
                                             }`}
                                         >
                                             Landscape
                                         </button>
                                         <button
                                             onClick={() => onToggleOrientation(true)}
-                                            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${isPortrait
-                                                ? 'bg-neutral-900 text-white border-neutral-900'
-                                                : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                                            aria-pressed={isPortrait}
+                                            className={`px-[13px] py-1.5 min-h-[32px] text-[12px] font-semibold tracking-[0.08em] uppercase transition-colors ${isPortrait
+                                                ? 'bg-ink text-paper'
+                                                : 'text-muted hover:text-ink'
                                             }`}
                                         >
                                             Portrait
@@ -1203,13 +1224,13 @@ export default function EditPanel({
                     </div>
 
                     {/* ========== SECTION 3: Details ========== */}
-                    <div id="details-section" className="p-4 pt-0">
+                    <div id="details-section" className="px-7 py-6 border-b-2 border-ink">
                         <SectionHeader title="Details" />
 
-                        <div className="space-y-3">
+                        <div>
                             {/* Start & Finish Dots */}
-                            <div className="flex items-center justify-between py-1">
-                                <span className="text-sm text-neutral-600">Start & finish dots</span>
+                            <div className="flex items-center justify-between gap-4 py-2">
+                                <span className="text-[15px]">Start &amp; finish dots</span>
                                 <ToggleSwitch
                                     checked={showMarkers}
                                     onChange={onToggleMarkers}
@@ -1218,8 +1239,8 @@ export default function EditPanel({
                             </div>
 
                             {/* Flag Badge */}
-                            <div className="flex items-center justify-between py-1">
-                                <span className="text-sm text-neutral-600">Flag badge</span>
+                            <div className="flex items-center justify-between gap-4 py-2">
+                                <span className="text-[15px]">Flag badge</span>
                                 <ToggleSwitch
                                     checked={imageOverride.enabled}
                                     onChange={handleToggleImageEnabled}
@@ -1229,27 +1250,27 @@ export default function EditPanel({
 
                             {/* Custom Image Upload (only when flag badge is enabled) */}
                             {imageOverride.enabled && (
-                                <div className="pl-0 pt-1">
+                                <div className="mt-3.5">
                                     {imageOverride.url ? (
-                                        <div className="flex items-center gap-2 p-2 bg-neutral-50 rounded-lg border border-neutral-100">
-                                            <Image src={imageOverride.url} alt="Custom" width={32} height={32} unoptimized className="h-8 w-auto rounded" />
-                                            <span className="text-xs text-neutral-500 flex-1">Custom image</span>
-                                            <button onClick={handleRemoveCustomImage} className="p-1 text-neutral-400 hover:text-red-500">
-                                                <Trash2 className="w-3 h-3" />
+                                        <div className="flex items-center gap-3 px-3.5 py-3 border-2 border-divider">
+                                            <Image src={imageOverride.url} alt="Custom" width={32} height={32} unoptimized className="h-5 w-auto border-2 border-ink flex-none" />
+                                            <span className="text-[13px] text-muted flex-1">Custom image</span>
+                                            <button onClick={handleRemoveCustomImage} aria-label="Remove custom image" className="p-1 text-faint hover:text-accent transition-colors">
+                                                <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                         </div>
                                     ) : defaultFlagUrl ? (
-                                        <div className="flex items-center gap-2 p-2 bg-neutral-50 rounded-lg border border-neutral-100">
-                                            <Image src={defaultFlagUrl} alt="Flag" width={32} height={32} className="h-8 w-auto rounded" />
-                                            <span className="text-xs text-neutral-500">{countryCode} flag (auto-detected)</span>
+                                        <div className="flex items-center gap-3 px-3.5 py-3 border-2 border-divider">
+                                            <Image src={defaultFlagUrl} alt="Flag" width={32} height={32} className="h-5 w-auto border-2 border-ink flex-none" />
+                                            <span className="text-[13px] text-muted">{countryCode} flag (auto-detected)</span>
                                         </div>
                                     ) : null}
                                     <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
                                     <button
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2 border border-dashed border-neutral-300 rounded-lg text-xs text-neutral-600 hover:border-neutral-400 hover:bg-neutral-50 transition-colors"
+                                        className="w-full mt-2.5 flex items-center gap-2.5 px-3.5 py-3 min-h-[44px] border-2 border-dashed border-divider text-[12px] font-semibold tracking-[0.08em] uppercase text-muted hover:border-ink hover:text-ink transition-colors"
                                     >
-                                        <Upload className="w-3 h-3" />
+                                        <Upload className="w-[15px] h-[15px]" />
                                         Upload custom image
                                     </button>
                                 </div>
@@ -1260,34 +1281,36 @@ export default function EditPanel({
                 </div>
 
                 {/* ========== SECTION 4: Export (Sticky Bottom) ========== */}
-                <div id="export-section" className="p-4 border-t border-neutral-200 bg-white space-y-4">
+                <div id="export-section" className="px-7 py-6 border-t-2 border-ink bg-paper">
                     <SectionHeader title="Export" />
 
                     {/* Print */}
-                    <div className="space-y-1.5">
-                        <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Print</p>
+                    <div>
+                        <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-faint">Print</p>
                         <button
                             disabled
-                            className="w-full flex items-center justify-center gap-2 py-3 bg-neutral-200 text-neutral-400 text-sm font-semibold rounded-xl cursor-not-allowed shadow-sm"
+                            className="w-full mt-2.5 flex items-center justify-between gap-3 px-4 py-3.5 border-2 border-divider text-[15px] font-semibold opacity-55 cursor-not-allowed"
                         >
-                            <Printer className="w-4 h-4" />
-                            Buy Personalised Print
-                            <span className="ml-1 text-[10px] font-bold uppercase tracking-wider bg-neutral-400 text-white px-1.5 py-0.5 rounded-md">Coming Soon</span>
+                            <span className="flex items-center gap-2.5">
+                                <Printer className="w-[18px] h-[18px]" />
+                                Buy Personalised Print
+                            </span>
+                            <span className="text-[10px] font-bold tracking-[0.1em] uppercase border-2 border-ink px-[7px] py-[3px] whitespace-nowrap">Coming soon</span>
                         </button>
-                        <p className="text-[10px] text-neutral-400 text-center">Printed on archival matte paper</p>
+                        <p className="mt-2 text-[12px] text-faint">Printed on archival matte paper</p>
                     </div>
 
                     {/* Digital */}
-                    <div className="space-y-1.5">
-                        <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Digital</p>
+                    <div className="mt-6">
+                        <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-faint">Digital</p>
                         <button
                             onClick={handleDownloadPNG}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 border border-neutral-200 text-neutral-700 text-sm font-medium rounded-xl hover:bg-neutral-50 hover:border-neutral-300 transition-colors"
+                            className="w-full mt-2.5 flex items-center gap-2.5 px-5 py-4 min-h-[44px] bg-accent text-white text-[15px] font-semibold tracking-[0.04em] uppercase hover:bg-accent-700 transition-colors"
                         >
-                            <Download className="w-4 h-4" />
-                            Download Image
+                            <Download className="w-[18px] h-[18px]" />
+                            Download image
                         </button>
-                        <p className="text-[10px] text-neutral-400 text-center">High-res PNG, print-ready at A1–A4</p>
+                        <p className="mt-2 text-[12px] text-faint">High-res PNG, print-ready at A1–A4</p>
                     </div>
 
                 </div>
@@ -1296,24 +1319,24 @@ export default function EditPanel({
 
             {/* Tip Modal — rendered outside panel div so it covers everything */}
             {showTipModal && (
-                <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-6">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-10 relative text-center">
+                <div className="fixed inset-0 bg-[color-mix(in_srgb,#2d2b2b_50%,transparent)] z-[100] flex items-center justify-center p-6">
+                    <div className="bg-paper border-2 border-ink shadow-[0_12px_32px_color-mix(in_srgb,#2d2b2b_22%,transparent)] max-w-lg w-full p-10 relative text-center">
                         <button
                             onClick={() => setShowTipModal(false)}
-                            className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-neutral-600 transition-colors"
+                            className="absolute top-4 right-4 p-2 text-muted hover:text-accent transition-colors"
                         >
                             <X className="w-5 h-5" />
                         </button>
 
                         <div className="space-y-6">
-                            <div className="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center mx-auto">
-                                <Heart className="w-8 h-8 text-pink-500" />
+                            <div className="w-16 h-16 border-2 border-ink flex items-center justify-center mx-auto">
+                                <Heart className="w-8 h-8 text-accent" />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-semibold text-neutral-900">
+                                <h2 className="text-[32px] font-bold tracking-[-0.02em] leading-[1.12]">
                                     Enjoy your download!
                                 </h2>
-                                <p className="mt-3 text-neutral-500 leading-relaxed">
+                                <p className="mt-3 text-[15px] text-muted leading-[1.55]">
                                     This tool is free to use. If you found it useful, a small tip helps keep it running and improving.
                                 </p>
                             </div>
@@ -1322,14 +1345,14 @@ export default function EditPanel({
                                     href="https://ko-fi.com/aligrant"
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-neutral-900 text-white text-sm font-semibold rounded-xl hover:bg-neutral-800 transition-colors"
+                                    className="w-full flex items-center justify-center gap-2 py-4 min-h-[44px] bg-accent text-white text-[15px] font-semibold tracking-[0.04em] uppercase hover:bg-accent-700 transition-colors"
                                 >
                                     <Heart className="w-4 h-4" />
                                     Support on Ko-fi
                                 </a>
                                 <button
                                     onClick={() => setShowTipModal(false)}
-                                    className="w-full py-3 text-sm text-neutral-400 hover:text-neutral-600 transition-colors"
+                                    className="w-full py-3 min-h-[44px] text-[13px] font-semibold tracking-[0.06em] uppercase text-muted hover:text-accent transition-colors"
                                 >
                                     Maybe later
                                 </button>

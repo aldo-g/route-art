@@ -9,6 +9,8 @@ import type { FeatureCollection, Feature, LineString, MultiLineString } from 'ge
 import { generateTerrain, fetchMapboxTerrain } from '@/lib/terrain';
 import { fetchLandmarks, Landmark } from '@/lib/landmarks';
 import jsPDF from 'jspdf';
+import { rasterizeSvg, canvasToBlob, fitPrintSize } from '@/lib/raster';
+import type { PrintTarget } from '@/config/products';
 
 export interface StatsOverrides {
     routeName?: string;
@@ -61,11 +63,22 @@ interface ArtCanvasProps {
     onLoadingStatusChange?: (status: string | null) => void;
 }
 
+export interface PrintFile {
+    blob: Blob;
+    width: number;
+    height: number;
+    /** Effective DPI across the chosen product's print area. */
+    dpi: number;
+}
+
 export interface ArtCanvasHandle {
     exportSVG: (fileName: string) => Promise<void>;
     exportPDF: (fileName: string) => Promise<void>;
     exportPNG: (fileName: string) => Promise<void>;
+    /** Small (2x screen) PNG for the store modal and cart thumbnail. */
     getPreviewDataUrl: () => Promise<string | null>;
+    /** Full-resolution PNG for Printful, sized for the chosen product variant. */
+    renderPrintFile: (target: PrintTarget) => Promise<PrintFile | null>;
 }
 
 const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileName, selectedLandmarkIds, customLandmarks, statsOverrides, imageOverride, isPlacingLandmark, isDarkMode = false, showWater = true, showMarkers = true, showShading = false, shadingIntensity = 0.5, artMode: _artMode = false, contourIntensity = 0.5, labelSideOverrides = {}, routeHighlight = true, routeHighlightIntensity = 0.5, onLandmarksLoaded, onVisibleLandmarksCalculated, onInBoundsLandmarksCalculated, onDefaultsCalculated, onCountryCodeDetected, onMapClick, onLoadingStatusChange }, ref) => {
@@ -702,192 +715,59 @@ const ArtCanvas = forwardRef<ArtCanvasHandle, ArtCanvasProps>(({ geoJson, fileNa
         },
         exportPDF: async (fileName: string) => {
             if (!svgRef.current || !processed || !containerSize) return;
-
-            const svgElement = svgRef.current;
-            // Use containerSize (the actual rendered content dimensions) instead of getBoundingClientRect
             const { width, height } = containerSize;
 
             const orientation = width > height ? 'l' : 'p';
             const pdf = new jsPDF(orientation, 'px', [width, height]);
 
-            // Clone the SVG and set explicit dimensions for proper rendering
-            const svgClone = svgElement.cloneNode(true) as SVGSVGElement;
-            svgClone.setAttribute('width', width.toString());
-            svgClone.setAttribute('height', height.toString());
-            svgClone.setAttribute('viewBox', `0 0 ${width} ${height}`);
-
-            // Convert external images to data URLs to avoid CORS issues when rendering to canvas
-            const images = svgClone.querySelectorAll('image');
-            for (const img of images) {
-                const href = img.getAttribute('href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
-                if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
-                    try {
-                        const response = await fetch(href);
-                        const blob = await response.blob();
-                        const dataUrl = await new Promise<string>((resolve) => {
-                            const reader = new FileReader();
-                            reader.onloadend = () => resolve(reader.result as string);
-                            reader.readAsDataURL(blob);
-                        });
-                        img.setAttribute('href', dataUrl);
-                        img.removeAttributeNS('http://www.w3.org/1999/xlink', 'href');
-                    } catch (e) {
-                        console.warn('Failed to convert image to data URL:', href, e);
-                    }
-                }
-            }
-
-            const svgData = new XMLSerializer().serializeToString(svgClone);
-            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-            const svgUrl = URL.createObjectURL(svgBlob);
-
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = width * 2;
-                canvas.height = height * 2;
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.fillStyle = '#f8f7f4';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-                    pdf.addImage(imgData, 'JPEG', 0, 0, width, height);
-                    pdf.save(`${fileName.replace(/\.[^/.]+$/, "")}.pdf`);
-                }
-                URL.revokeObjectURL(svgUrl);
-            };
-            img.src = svgUrl;
+            const canvas = await rasterizeSvg(svgRef.current, width, height, width * 2, height * 2);
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            pdf.addImage(imgData, 'JPEG', 0, 0, width, height);
+            pdf.save(`${fileName.replace(/\.[^/.]+$/, "")}.pdf`);
         },
         exportPNG: async (fileName: string) => {
             if (!svgRef.current || !containerSize) return;
-
-            const svgElement = svgRef.current;
-            // Use containerSize (the actual rendered content dimensions) instead of getBoundingClientRect
-            // which may include extra space from CSS layout
             const { width, height } = containerSize;
 
-            // Clone the SVG and set explicit dimensions for proper rendering
-            const svgClone = svgElement.cloneNode(true) as SVGSVGElement;
-            svgClone.setAttribute('width', width.toString());
-            svgClone.setAttribute('height', height.toString());
-            svgClone.setAttribute('viewBox', `0 0 ${width} ${height}`);
+            // 8x the on-screen size: roughly A1 at 150 DPI, fine for the free download.
+            const scale = 8;
+            const canvas = await rasterizeSvg(svgRef.current, width, height, width * scale, height * scale);
+            const blob = await canvasToBlob(canvas, 'image/png');
 
-            // Convert external images to data URLs to avoid CORS issues when rendering to canvas
-            const images = svgClone.querySelectorAll('image');
-            for (const img of images) {
-                const href = img.getAttribute('href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
-                if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
-                    try {
-                        const response = await fetch(href);
-                        const blob = await response.blob();
-                        const dataUrl = await new Promise<string>((resolve) => {
-                            const reader = new FileReader();
-                            reader.onloadend = () => resolve(reader.result as string);
-                            reader.readAsDataURL(blob);
-                        });
-                        img.setAttribute('href', dataUrl);
-                        img.removeAttributeNS('http://www.w3.org/1999/xlink', 'href');
-                    } catch (e) {
-                        console.warn('Failed to convert image to data URL:', href, e);
-                    }
-                }
-            }
-
-            const svgData = new XMLSerializer().serializeToString(svgClone);
-            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-            const svgUrl = URL.createObjectURL(svgBlob);
-
-            const img = new Image();
-            img.onload = () => {
-                // Use 8x resolution for print-quality output (~A1 at 150 DPI)
-                const scale = 8;
-                const canvas = document.createElement('canvas');
-                canvas.width = width * scale;
-                canvas.height = height * scale;
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.fillStyle = '#f8f7f4';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-                    canvas.toBlob((blob) => {
-                        if (blob) {
-                            const url = URL.createObjectURL(blob);
-                            const downloadLink = document.createElement('a');
-                            downloadLink.href = url;
-                            downloadLink.download = `${fileName.replace(/\.[^/.]+$/, "")}.png`;
-                            document.body.appendChild(downloadLink);
-                            downloadLink.click();
-                            document.body.removeChild(downloadLink);
-                            URL.revokeObjectURL(url);
-                        }
-                    }, 'image/png');
-                }
-                URL.revokeObjectURL(svgUrl);
-            };
-            img.src = svgUrl;
+            const url = URL.createObjectURL(blob);
+            const downloadLink = document.createElement('a');
+            downloadLink.href = url;
+            downloadLink.download = `${fileName.replace(/\.[^/.]+$/, "")}.png`;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            URL.revokeObjectURL(url);
         },
         getPreviewDataUrl: async () => {
             if (!svgRef.current || !containerSize) return null;
-
-            const svgElement = svgRef.current;
+            const { width, height } = containerSize;
+            try {
+                const canvas = await rasterizeSvg(svgRef.current, width, height, width * 2, height * 2);
+                return canvas.toDataURL('image/png');
+            } catch (e) {
+                console.warn('Preview render failed:', e);
+                return null;
+            }
+        },
+        renderPrintFile: async (target: PrintTarget) => {
+            if (!svgRef.current || !containerSize) return null;
             const { width, height } = containerSize;
 
-            const svgClone = svgElement.cloneNode(true) as SVGSVGElement;
-            svgClone.setAttribute('width', width.toString());
-            svgClone.setAttribute('height', height.toString());
-            svgClone.setAttribute('viewBox', `0 0 ${width} ${height}`);
-
-            const images = svgClone.querySelectorAll('image');
-            for (const img of images) {
-                const href = img.getAttribute('href') || img.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
-                if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
-                    try {
-                        const response = await fetch(href);
-                        const blob = await response.blob();
-                        const dataUrl = await new Promise<string>((resolve) => {
-                            const reader = new FileReader();
-                            reader.onloadend = () => resolve(reader.result as string);
-                            reader.readAsDataURL(blob);
-                        });
-                        img.setAttribute('href', dataUrl);
-                        img.removeAttributeNS('http://www.w3.org/1999/xlink', 'href');
-                    } catch (e) {
-                        console.warn('Failed to convert image to data URL:', href, e);
-                    }
-                }
-            }
-
-            const svgData = new XMLSerializer().serializeToString(svgClone);
-            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-            const svgUrl = URL.createObjectURL(svgBlob);
-
-            return new Promise<string | null>((resolve) => {
-                const img = new Image();
-                img.onload = () => {
-                    const scale = 2;
-                    const canvas = document.createElement('canvas');
-                    canvas.width = width * scale;
-                    canvas.height = height * scale;
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) {
-                        ctx.fillStyle = '#f8f7f4';
-                        ctx.fillRect(0, 0, canvas.width, canvas.height);
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        resolve(canvas.toDataURL('image/png'));
-                    } else {
-                        resolve(null);
-                    }
-                    URL.revokeObjectURL(svgUrl);
-                };
-                img.onerror = () => {
-                    URL.revokeObjectURL(svgUrl);
-                    resolve(null);
-                };
-                img.src = svgUrl;
-            });
-        }
+            // Scale the artwork to the product's physical print area at PRINT_DPI,
+            // capped at what this browser can rasterize in one canvas.
+            const fit = fitPrintSize(width, height, target.widthPx, target.heightPx, target.dpi);
+            const canvas = await rasterizeSvg(svgRef.current, width, height, fit.width, fit.height);
+            const blob = await canvasToBlob(canvas, 'image/png');
+            // Release the backing store promptly; these canvases are tens of megapixels.
+            canvas.width = 0;
+            canvas.height = 0;
+            return { blob, width: fit.width, height: fit.height, dpi: fit.dpi };
+        },
     }));
 
     useEffect(() => {

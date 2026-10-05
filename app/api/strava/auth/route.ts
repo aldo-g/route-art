@@ -13,6 +13,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
     const error = searchParams.get('error');
+    // Strava reports the scopes actually granted here, not in the token response.
+    // The consent screen lets the user decline private-activity access, so what we
+    // asked for and what we got can differ.
+    const grantedScope = searchParams.get('scope') ?? '';
 
     if (error) {
         return new NextResponse(
@@ -54,7 +58,7 @@ export async function GET(request: NextRequest) {
 
         // Return HTML that stores tokens in sessionStorage and communicates with opener
         return new NextResponse(
-            generateHtmlResponse({ tokens }),
+            generateHtmlResponse({ tokens: { ...tokens, scope: grantedScope } }),
             { headers: { 'Content-Type': 'text/html' } }
         );
     } catch (err) {

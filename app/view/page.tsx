@@ -13,7 +13,9 @@ import { Landmark } from '@/lib/landmarks';
 import { getRouteData } from '@/lib/storage';
 import StoreModal from '@/components/store/StoreModal';
 import { useCart } from '@/components/cart/CartProvider';
-import { PrintSize, ProductType } from '@/config/products';
+import { PrintSize, ProductType, getPrintAspect, DEFAULT_PRINT_ASPECT, getPrintTarget } from '@/config/products';
+import { uploadPoster, dataUrlToBlob } from '@/lib/poster-upload';
+import { toast } from 'sonner';
 import type { FeatureCollection, Feature, LineString, MultiLineString } from 'geojson';
 
 export default function ViewPage() {
@@ -40,6 +42,12 @@ export default function ViewPage() {
 
     // Poster orientation state
     const [isPortrait, setIsPortrait] = useState(false);
+
+    // Print variant the artwork is currently laid out for. null = A-series (design / free download).
+    // While the store modal is open this follows the selected product + size so the canvas,
+    // the cart thumbnail and the file sent to Printful all share the variant's exact proportions.
+    const [printFormat, setPrintFormat] = useState<{ productType: ProductType; size: PrintSize } | null>(null);
+    const printAspect = printFormat ? getPrintAspect(printFormat.productType, printFormat.size) : DEFAULT_PRINT_ASPECT;
 
     // Canvas dark mode state
     const [isDarkMode, setIsDarkMode] = useState(false);
@@ -405,29 +413,123 @@ export default function ViewPage() {
     // Store modal state
     const [showStoreModal, setShowStoreModal] = useState(false);
     const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+    // Progress text while the print file is rendered and uploaded; null when idle.
+    const [addStatus, setAddStatus] = useState<string | null>(null);
     const { addItem, setCartOpen } = useCart();
 
-    const handleBuyPrint = async () => {
-        const dataUrl = await canvasRef.current?.getPreviewDataUrl();
-        if (dataUrl) {
-            setPreviewImageUrl(dataUrl);
-        }
+    const handleBuyPrint = () => {
+        // The modal reports its initial selection via onSelectionChange, which re-lays out
+        // the canvas at that variant's ratio; the preview is captured once that render settles.
+        setPreviewImageUrl(null);
         setShowStoreModal(true);
     };
 
-    const handleAddToCart = async (productType: ProductType, size: PrintSize, quantity: number) => {
-        if (!previewImageUrl) return;
-        const name = statsOverrides.routeName || routeDefaults?.routeName || fileName.replace(/\.[^/.]+$/, '');
-        await addItem({
-            routeName: name,
-            routeId: fileName,
-            productType,
-            size,
-            quantity,
-            imageDataUrl: previewImageUrl,
+    const handleStoreSelectionChange = useCallback((productType: ProductType, size: PrintSize) => {
+        setPrintFormat(prev => {
+            if (prev && prev.productType === productType && prev.size === size) return prev;
+            return { productType, size };
         });
+    }, []);
+
+    const handleCloseStore = () => {
+        if (addStatus !== null) return; // keep the canvas at the print ratio until render/upload finishes
         setShowStoreModal(false);
-        setCartOpen(true);
+        setPrintFormat(null); // back to A-series for designing / downloading
+        setPreviewImageUrl(null);
+    };
+
+    // Re-capture the store preview whenever the print format changes and the canvas has
+    // finished re-rendering for it (resize → re-projection → terrain/landmark fetches).
+    useEffect(() => {
+        if (!showStoreModal || !printFormat || loadingStatus) return;
+        setPreviewImageUrl(null);
+        let cancelled = false;
+        const timer = setTimeout(async () => {
+            const dataUrl = await canvasRef.current?.getPreviewDataUrl();
+            if (!cancelled && dataUrl) setPreviewImageUrl(dataUrl);
+        }, 300);
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [showStoreModal, printFormat, loadingStatus]);
+
+
+    const handleAddToCart = async (productType: ProductType, size: PrintSize, quantity: number) => {
+        if (addStatus !== null) return;
+        const target = getPrintTarget(productType, size);
+        if (!target) return;
+        // The canvas must already be laid out at this variant's print ratio, otherwise the
+        // print file would be letterboxed or cropped by Printful. The modal normally
+        // guarantees this via onSelectionChange + isReady; refuse rather than guess.
+        if (!printFormat || printFormat.productType !== productType || printFormat.size !== size) {
+            toast.error('The preview is still updating for this size. Please try again in a moment.');
+            return;
+        }
+        const name = statsOverrides.routeName || routeDefaults?.routeName || fileName.replace(/\.[^/.]+$/, '');
+
+        try {
+            // Capture fresh at click time so the stored image is exactly what is on screen,
+            // already laid out at this variant's print ratio.
+            setAddStatus('Rendering print file…');
+            const dataUrl = await canvasRef.current?.getPreviewDataUrl();
+            if (!dataUrl) throw new Error('Could not capture the poster preview');
+
+            // Render the full-resolution print file now, while the live canvas is available.
+            // The cart persists across pages, so this is the only moment we can rasterize it.
+            const printFile = await canvasRef.current?.renderPrintFile(target);
+            if (!printFile) throw new Error('Could not render the print file');
+
+            const previewBlob = await dataUrlToBlob(dataUrl);
+
+            const uploaded = await uploadPoster({
+                routeName: name,
+                productType,
+                size,
+                config: {
+                    isPortrait,
+                    isDarkMode,
+                    showWater,
+                    showShading,
+                    artMode,
+                    printWidth: printFile.width,
+                    printHeight: printFile.height,
+                    printDpi: printFile.dpi,
+                },
+                printBlob: printFile.blob,
+                previewBlob,
+                onProgress: ({ stage, fraction }) => {
+                    if (stage === 'print') {
+                        const pct = fraction === null ? '' : ` ${Math.round(fraction * 100)}%`;
+                        setAddStatus(`Uploading print file${pct}`);
+                    } else if (stage === 'preview') {
+                        setAddStatus('Finishing…');
+                    }
+                },
+            });
+
+            await addItem({
+                routeName: name,
+                routeId: fileName,
+                productType,
+                size,
+                quantity,
+                imageDataUrl: dataUrl,
+                posterId: uploaded.posterId,
+                imageUrl: uploaded.imageUrl,
+                previewUrl: uploaded.previewUrl,
+                printWidth: printFile.width,
+                printHeight: printFile.height,
+                printDpi: printFile.dpi,
+            });
+            handleCloseStore();
+            setCartOpen(true);
+        } catch (err) {
+            console.error('Add to cart failed:', err);
+            toast.error(err instanceof Error ? err.message : 'Could not add this print to your cart. Please try again.');
+        } finally {
+            setAddStatus(null);
+        }
     };
 
     const handleBack = () => {
@@ -449,28 +551,28 @@ export default function ViewPage() {
 
     if (!geoJson) {
         return (
-            <main className="min-h-screen bg-neutral-100 flex items-center justify-center">
-                <div className="text-neutral-400">Loading...</div>
+            <main className="min-h-screen bg-background flex items-center justify-center">
+                <div className="text-[13px] tracking-[0.08em] uppercase text-faint">Loading…</div>
             </main>
         );
     }
 
     return (
-        <main className="h-screen bg-neutral-100 text-neutral-900 flex flex-col font-sans overflow-hidden">
+        <main className="h-screen bg-background text-ink flex flex-col font-sans overflow-hidden">
             <Header showBackButton onBack={handleBack} />
 
             <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
-                <div className={`flex-1 flex flex-col items-center justify-center min-h-0 ${isPortrait ? 'py-2 px-4' : 'p-4 lg:p-6'}`}>
+                <div className={`flex-1 flex flex-col items-center justify-center min-h-0 lg:border-r-2 lg:border-ink ${isPortrait ? 'py-4 px-4' : 'p-4 lg:p-8'}`}>
                     <div
-                        className="rounded-lg shadow-[0_8px_30px_rgba(0,0,0,0.12)] overflow-hidden relative"
+                        className="border-2 border-ink bg-paper overflow-hidden relative shadow-[0_3px_10px_color-mix(in_srgb,#2d2b2b_16%,transparent)]"
                         style={isPortrait ? {
-                            aspectRatio: '1 / 1.4142',
-                            height: 'min(70vh, calc(100vw * 1.4142))',
-                            maxWidth: 'calc(70vh / 1.4142)' // A-series ratio constraint
+                            aspectRatio: `1 / ${printAspect}`,
+                            height: `min(70vh, calc(100vw * ${printAspect}))`,
+                            maxWidth: `calc(70vh / ${printAspect})` // keeps the print ratio when height-bound
                         } : {
-                            aspectRatio: '1.4142 / 1',
+                            aspectRatio: `${printAspect} / 1`,
                             width: '100%',
-                            maxWidth: 'min(calc((100vh - 180px) * 1.4142), 100%)', // A-series ratio constraint
+                            maxWidth: `min(calc((100vh - 180px) * ${printAspect}), 100%)`, // keeps the print ratio when height-bound
                             maxHeight: 'calc(100vh - 180px)'
                         }}
                     >
@@ -506,7 +608,7 @@ export default function ViewPage() {
                             message={loadingStatus ?? ""}
                         />
                     </div>
-                    <p className="mt-2 text-xs text-neutral-400 text-center hidden lg:block">
+                    <p className="mt-5 text-[13px] text-faint text-center hidden lg:block">
                         Your adventure, transformed into gallery-quality wall art
                     </p>
                 </div>
@@ -567,11 +669,15 @@ export default function ViewPage() {
 
             {showStoreModal && (
                 <StoreModal
-                    imageUrl={previewImageUrl || ''}
+                    imageUrl={previewImageUrl}
+                    isReady={!loadingStatus && !!previewImageUrl}
+                    isPortrait={isPortrait}
                     routeName={statsOverrides.routeName || routeDefaults?.routeName || fileName.replace(/\.[^/.]+$/, '')}
                     routeId={fileName}
-                    onClose={() => setShowStoreModal(false)}
+                    onSelectionChange={handleStoreSelectionChange}
+                    onClose={handleCloseStore}
                     onAddToCart={handleAddToCart}
+                    addStatus={addStatus}
                 />
             )}
         </main>

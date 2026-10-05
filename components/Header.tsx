@@ -14,32 +14,46 @@ export default function Header({ showBackButton = false, onBack, onCtaClick }: H
   const { count, setCartOpen } = useCart();
 
   return (
-    <header className="sticky top-0 z-50 relative p-4 border-b border-neutral-200 bg-white overflow-hidden">
+    <header className="sticky top-0 z-50 relative border-b-2 border-ink bg-paper overflow-hidden">
       <ContourPattern />
-      <div className="relative z-10 flex items-center justify-between gap-4">
+      <div className="relative z-10 flex items-center justify-between gap-4 px-5 py-3 sm:px-8 sm:py-[18px]">
         <div className="flex items-center gap-4">
           {showBackButton && onBack && (
             <>
               <button
                 onClick={onBack}
-                className="flex items-center gap-2 text-neutral-500 hover:text-neutral-800 transition-colors text-sm bg-white/80 backdrop-blur-sm px-2 py-1 rounded"
+                className="flex items-center gap-2 min-h-[44px] px-2 text-[12px] tracking-[0.08em] uppercase text-muted hover:text-accent transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
-                New Route
+                New route
               </button>
-              <div className="h-4 w-px bg-neutral-200" />
+              <div className="h-5 w-px bg-divider" />
             </>
           )}
-          <span className="text-lg font-bold tracking-tight bg-white/80 backdrop-blur-sm px-3 py-1 rounded">Contour Maps Studio</span>
+          <span className="text-[17px] font-bold tracking-[-0.01em]">Contour Map Studio</span>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="flex items-center gap-4 sm:gap-6">
+          <a
+            href="#examples"
+            className="hidden md:inline text-[13px] tracking-[0.08em] uppercase text-muted hover:text-accent transition-colors"
+          >
+            Iconic routes
+          </a>
+          <a
+            href="#how-it-works"
+            className="hidden md:inline text-[13px] tracking-[0.08em] uppercase text-muted hover:text-accent transition-colors"
+          >
+            How it works
+          </a>
           <button
             onClick={() => setCartOpen(true)}
-            className="relative p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-neutral-500 hover:text-neutral-800 transition-colors bg-white/80 backdrop-blur-sm rounded-lg"
+            aria-label="Open cart"
+            className="relative min-w-[44px] min-h-[44px] flex items-center justify-center text-ink hover:text-accent transition-colors"
           >
             <ShoppingCart className="w-5 h-5" />
             {count > 0 && (
-              <span className="absolute -top-1 -right-1 w-4.5 h-4.5 min-w-[18px] bg-neutral-900 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 bg-accent text-white text-[10px] font-bold flex items-center justify-center">
                 {count}
               </span>
             )}
@@ -47,7 +61,7 @@ export default function Header({ showBackButton = false, onBack, onCtaClick }: H
           {onCtaClick && (
             <button
               onClick={onCtaClick}
-              className="hidden sm:block px-5 py-2.5 min-h-[44px] bg-neutral-900 text-white rounded-lg text-sm font-medium hover:bg-neutral-800 transition-colors"
+              className="hidden sm:block px-[18px] py-3 min-h-[44px] bg-accent text-white text-[13px] font-semibold tracking-[0.04em] uppercase hover:bg-accent-700 transition-colors"
             >
               Create poster
             </button>
